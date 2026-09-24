@@ -1,0 +1,164 @@
+html, body {
+	height: 100%;
+}
+
+body {
+	display: flex;
+	flex-direction: column;
+	margin: 0;
+	padding: 0;
+	color: var(--vscode-editor-foreground);
+	background: var(--vscode-editor-background);
+	font-family: var(--vscode-markdown-font-family, var(--vscode-font-family));
+	font-size: 14px;
+	line-height: 1.6;
+}
+
+/* ---- Toolbar (always visible) ---- */
+.toolbar {
+	flex: none;
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 12px;
+	padding: 6px 16px;
+	font-family: var(--vscode-font-family);
+	font-size: var(--vscode-font-size);
+	line-height: normal;
+	background: var(--vscode-editorWidget-background);
+	border-bottom: 1px solid var(--vscode-panel-border);
+}
+.toolbar .file { font-weight: 600; }
+.toolbar .status {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	color: var(--vscode-descriptionForeground);
+}
+.toolbar .dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: var(--vscode-charts-yellow);
+}
+.toolbar .spacer { flex: 1; }
+.toolbar button {
+	padding: 4px 12px;
+	border: none;
+	border-radius: 2px;
+	cursor: pointer;
+	font-family: inherit;
+	font-size: inherit;
+	color: var(--vscode-button-foreground);
+	background: var(--vscode-button-background);
+}
+.toolbar button:hover { background: var(--vscode-button-hoverBackground); }
+
+/* View switcher (segmented) */
+.nav {
+	display: flex;
+	border: 1px solid var(--vscode-panel-border);
+	border-radius: 4px;
+	overflow: hidden;
+}
+.toolbar .nav button {
+	border-radius: 0;
+	color: var(--vscode-foreground);
+	background: transparent;
+}
+.toolbar .nav button + button { border-left: 1px solid var(--vscode-panel-border); }
+.toolbar .nav button:hover { background: var(--vscode-toolbar-hoverBackground); }
+.toolbar .nav button.active {
+	color: var(--vscode-button-foreground);
+	background: var(--vscode-button-background);
+}
+
+/* ---- Panes per mode ---- */
+#panes {
+	flex: 1;
+	min-height: 0;
+	display: grid;
+}
+#rendered, #text, #wysiwyg {
+	display: none;
+	min-height: 0;
+	overflow: auto;
+}
+body[data-mode='korn'] #rendered,
+body[data-mode='text'] #text,
+body[data-mode='editor'] #wysiwyg {
+	display: block;
+}
+body[data-mode='preview'] #panes { grid-template-columns: 1fr 1fr; }
+body[data-mode='preview'] #text,
+body[data-mode='preview'] #rendered {
+	display: block;
+}
+body[data-mode='preview'] #rendered { border-left: 1px solid var(--vscode-panel-border); }
+
+/* ---- CodeMirror themed with VS Code colors ---- */
+#text .cm-editor {
+	height: 100%;
+	color: var(--vscode-editor-foreground);
+	background: var(--vscode-editor-background);
+	font-size: var(--vscode-editor-font-size);
+}
+#text .cm-editor.cm-focused { outline: none; }
+#text .cm-gutters {
+	border: none;
+	color: var(--vscode-editorLineNumber-foreground);
+	background: var(--vscode-editorGutter-background, var(--vscode-editor-background));
+}
+#text .cm-activeLine,
+#text .cm-activeLineGutter { background: var(--vscode-editor-lineHighlightBackground, transparent); }
+#text .cm-activeLineGutter { color: var(--vscode-editorLineNumber-activeForeground); }
+#text .cm-cursor { border-left-color: var(--vscode-editorCursor-foreground); }
+#text .cm-selectionBackground,
+#text .cm-focused .cm-selectionBackground,
+#text .cm-content ::selection { background: var(--vscode-editor-selectionBackground) !important; }
+
+/* ---- Milkdown (WYSIWYG) ---- */
+#wysiwyg .ProseMirror {
+	min-height: 100%;
+	box-sizing: border-box;
+	outline: none;
+}
+
+/* ---- Rendered markdown, shared by Korn/Preview and the WYSIWYG editor ---- */
+#rendered,
+#wysiwyg .ProseMirror {
+	padding: 16px max(26px, calc((100% - 880px) / 2)) 48px;
+}
+body[data-mode='preview'] #rendered { padding: 16px 26px 48px; }
+
+:is(#rendered, #wysiwyg) :is(h1, h2) {
+	padding-bottom: 0.3em;
+	border-bottom: 1px solid var(--vscode-panel-border);
+}
+:is(#rendered, #wysiwyg) :is(h1, h2, h3, h4, h5, h6) { line-height: 1.25; margin: 1.2em 0 0.6em; }
+:is(#rendered, #wysiwyg) a { color: var(--vscode-textLink-foreground); }
+:is(#rendered, #wysiwyg) a:hover { color: var(--vscode-textLink-activeForeground); }
+:is(#rendered, #wysiwyg) code {
+	font-family: var(--vscode-editor-font-family);
+	font-size: 0.9em;
+	padding: 0.1em 0.3em;
+	border-radius: 3px;
+	background: var(--vscode-textCodeBlock-background);
+}
+:is(#rendered, #wysiwyg) pre {
+	padding: 12px 16px;
+	overflow-x: auto;
+	border-radius: 4px;
+	background: var(--vscode-textCodeBlock-background);
+}
+:is(#rendered, #wysiwyg) pre code { padding: 0; background: none; }
+:is(#rendered, #wysiwyg) blockquote {
+	margin: 0 0 1em;
+	padding: 0 16px;
+	border-left: 4px solid var(--vscode-textBlockQuote-border);
+	background: var(--vscode-textBlockQuote-background);
+}
+:is(#rendered, #wysiwyg) table { border-collapse: collapse; margin-bottom: 1em; }
+:is(#rendered, #wysiwyg) :is(th, td) { padding: 6px 12px; border: 1px solid var(--vscode-panel-border); }
+:is(#rendered, #wysiwyg) hr { border: none; border-top: 1px solid var(--vscode-panel-border); }
+:is(#rendered, #wysiwyg) img { max-width: 100%; }

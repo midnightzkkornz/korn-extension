@@ -1,49 +1,79 @@
 import * as vscode from 'vscode';
 import { getNonce } from './util';
 
-type NavTarget = 'text' | 'preview' | 'editor';
-type EditorMessage = { type: 'ready' | 'sync' } | { type: 'nav'; target: NavTarget };
+// Messages from the webview (see webview/main.ts)
+type EditorMessage = { type: 'ready' } | { type: 'sync' } | { type: 'edit'; text: string; seq: number };
 
-const NAV_COMMANDS: Record<NavTarget, string> = {
-	text: 'korn.openText',
-	preview: 'korn.openPreview',
-	editor: 'korn.openMdEditor',
-};
-
-// PDF-style viewer for *.r.md: custom toolbar on top + markdown rendered by VS Code's own engine
+// Korn editor for *.r.md: one tab with an always-visible toolbar and 4 modes
+// (Korn / Text / Preview / Editor). The UI lives in webview/ and is bundled into out/webview.js.
 export class RmdEditorProvider implements vscode.CustomTextEditorProvider {
 	public static readonly viewType = 'korn.rmdEditor';
+
+	constructor(private readonly extensionUri: vscode.Uri) {}
 
 	async resolveCustomTextEditor(document: vscode.TextDocument, panel: vscode.WebviewPanel): Promise<void> {
 		const docFolder = vscode.Uri.joinPath(document.uri, '..');
 		panel.webview.options = {
 			enableScripts: true,
-			localResourceRoots: [docFolder, ...(vscode.workspace.workspaceFolders?.map((f) => f.uri) ?? [])],
+			localResourceRoots: [
+				vscode.Uri.joinPath(this.extensionUri, 'out'),
+				docFolder,
+				...(vscode.workspace.workspaceFolders?.map((f) => f.uri) ?? []),
+			],
 		};
 		panel.webview.html = this.getHtml(panel.webview, document);
 
-		const update = async () => {
-			panel.webview.postMessage({ type: 'render', html: await renderMarkdown(document.getText()) });
+		// Edits from the webview are applied in order. `ackSeq` tells the webview which of its
+		// edits are already in the document, so it never gets overwritten with older text mid-typing.
+		let ackSeq = 0;
+		let editQueue = Promise.resolve();
+
+		const applyWebviewEdit = (text: string, seq: number) => {
+			editQueue = editQueue.then(async () => {
+				if (document.getText() !== text) {
+					const edit = new vscode.WorkspaceEdit();
+					edit.replace(document.uri, new vscode.Range(0, 0, document.lineCount, 0), text);
+					await vscode.workspace.applyEdit(edit);
+				}
+				ackSeq = seq;
+				sendUpdate('update');
+			});
 		};
 
-		// Re-render when the file is edited in another view (Text / Markdown Editor)
+		let renderTimer: ReturnType<typeof setTimeout> | undefined;
+		const sendUpdate = (type: 'init' | 'update') => {
+			clearTimeout(renderTimer);
+			renderTimer = setTimeout(
+				async () => {
+					const text = document.getText();
+					const html = await renderMarkdown(text);
+					panel.webview.postMessage({ type, text, html, ackSeq });
+				},
+				type === 'init' ? 0 : 100
+			);
+		};
+
 		const changeSub = vscode.workspace.onDidChangeTextDocument((e) => {
-			if (e.document.uri.toString() === document.uri.toString()) {
-				update();
+			if (e.document.uri.toString() === document.uri.toString() && e.contentChanges.length > 0) {
+				sendUpdate('update');
 			}
 		});
-		panel.onDidDispose(() => changeSub.dispose());
+		panel.onDidDispose(() => {
+			clearTimeout(renderTimer);
+			changeSub.dispose();
+		});
 
 		panel.webview.onDidReceiveMessage((message: EditorMessage) => {
 			switch (message.type) {
 				case 'ready':
-					update();
+					ackSeq = 0; // webview (re)loaded, its edit counter starts over
+					sendUpdate('init');
+					break;
+				case 'edit':
+					applyWebviewEdit(message.text, message.seq);
 					break;
 				case 'sync':
 					vscode.commands.executeCommand('korn.sync', document.uri);
-					break;
-				case 'nav':
-					vscode.commands.executeCommand(NAV_COMMANDS[message.target], document.uri);
 					break;
 			}
 		});
@@ -52,154 +82,36 @@ export class RmdEditorProvider implements vscode.CustomTextEditorProvider {
 	private getHtml(webview: vscode.Webview, document: vscode.TextDocument): string {
 		const nonce = getNonce();
 		const fileName = escapeHtml(vscode.workspace.asRelativePath(document.uri));
+		const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'out', 'webview.js'));
+		const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'out', 'webview.css'));
 
 		return /* html */ `<!DOCTYPE html>
 <html lang="en">
 <head>
 	<meta charset="UTF-8">
-	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} https: data:; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
+	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} https: data:; font-src ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<style>
-		body {
-			margin: 0;
-			padding: 0;
-			color: var(--vscode-editor-foreground);
-			background: var(--vscode-editor-background);
-			font-family: var(--vscode-markdown-font-family, var(--vscode-font-family));
-			font-size: 14px;
-			line-height: 1.6;
-		}
-
-		/* Toolbar */
-		.toolbar {
-			position: sticky;
-			top: 0;
-			z-index: 1;
-			display: flex;
-			align-items: center;
-			gap: 12px;
-			padding: 6px 16px;
-			font-family: var(--vscode-font-family);
-			font-size: var(--vscode-font-size);
-			background: var(--vscode-editorWidget-background);
-			border-bottom: 1px solid var(--vscode-panel-border);
-		}
-		.toolbar .file { font-weight: 600; }
-		.toolbar .status {
-			display: flex;
-			align-items: center;
-			gap: 6px;
-			color: var(--vscode-descriptionForeground);
-		}
-		.toolbar .dot {
-			width: 8px;
-			height: 8px;
-			border-radius: 50%;
-			background: var(--vscode-charts-yellow);
-		}
-		.toolbar .spacer { flex: 1; }
-		.toolbar button {
-			padding: 4px 12px;
-			border: none;
-			border-radius: 2px;
-			cursor: pointer;
-			font-family: inherit;
-			color: var(--vscode-button-foreground);
-			background: var(--vscode-button-background);
-		}
-		.toolbar button:hover { background: var(--vscode-button-hoverBackground); }
-
-		/* View switcher (segmented) */
-		.nav {
-			display: flex;
-			border: 1px solid var(--vscode-panel-border);
-			border-radius: 4px;
-			overflow: hidden;
-		}
-		.toolbar .nav button {
-			border-radius: 0;
-			color: var(--vscode-foreground);
-			background: transparent;
-		}
-		.toolbar .nav button + button { border-left: 1px solid var(--vscode-panel-border); }
-		.toolbar .nav button:hover { background: var(--vscode-toolbar-hoverBackground); }
-		.toolbar .nav button.active {
-			cursor: default;
-			color: var(--vscode-button-foreground);
-			background: var(--vscode-button-background);
-		}
-
-		/* Rendered markdown (close to VS Code's markdown preview) */
-		main {
-			max-width: 880px;
-			margin: 0 auto;
-			padding: 16px 26px 48px;
-		}
-		h1, h2 {
-			padding-bottom: 0.3em;
-			border-bottom: 1px solid var(--vscode-panel-border);
-		}
-		h1, h2, h3, h4, h5, h6 { line-height: 1.25; margin: 1.2em 0 0.6em; }
-		a { color: var(--vscode-textLink-foreground); }
-		a:hover { color: var(--vscode-textLink-activeForeground); }
-		code {
-			font-family: var(--vscode-editor-font-family);
-			font-size: 0.9em;
-			padding: 0.1em 0.3em;
-			border-radius: 3px;
-			background: var(--vscode-textCodeBlock-background);
-		}
-		pre {
-			padding: 12px 16px;
-			overflow-x: auto;
-			border-radius: 4px;
-			background: var(--vscode-textCodeBlock-background);
-		}
-		pre code { padding: 0; background: none; }
-		blockquote {
-			margin: 0 0 1em;
-			padding: 0 16px;
-			border-left: 4px solid var(--vscode-textBlockQuote-border);
-			background: var(--vscode-textBlockQuote-background);
-		}
-		table { border-collapse: collapse; margin-bottom: 1em; }
-		th, td { padding: 6px 12px; border: 1px solid var(--vscode-panel-border); }
-		hr { border: none; border-top: 1px solid var(--vscode-panel-border); }
-		img { max-width: 100%; }
-	</style>
+	<link rel="stylesheet" href="${styleUri}">
 </head>
-<body>
+<body data-mode="korn">
 	<div class="toolbar">
 		<div class="nav">
-			<button class="active" title="Korn View">Korn</button>
-			<button data-target="text" title="Text Editor">Text</button>
-			<button data-target="preview" title="Markdown Preview">Preview</button>
-			<button data-target="editor" title="Markdown Editor">Editor</button>
+			<button data-mode="korn" title="Rendered view">Korn</button>
+			<button data-mode="text" title="Edit markdown source">Text</button>
+			<button data-mode="preview" title="Source + live preview">Preview</button>
+			<button data-mode="editor" title="WYSIWYG editor">Editor</button>
 		</div>
 		<span class="file">${fileName}</span>
 		<span class="status"><span class="dot"></span>Last sync: never</span>
 		<span class="spacer"></span>
 		<button id="sync">⟳ Sync</button>
 	</div>
-	<main id="content"></main>
-
-	<script nonce="${nonce}">
-		const vscode = acquireVsCodeApi();
-		const content = document.getElementById('content');
-
-		document.getElementById('sync').addEventListener('click', () => vscode.postMessage({ type: 'sync' }));
-		for (const button of document.querySelectorAll('.nav button[data-target]')) {
-			button.addEventListener('click', () => vscode.postMessage({ type: 'nav', target: button.dataset.target }));
-		}
-
-		window.addEventListener('message', (event) => {
-			if (event.data.type === 'render') {
-				content.innerHTML = event.data.html;
-			}
-		});
-
-		vscode.postMessage({ type: 'ready' });
-	</script>
+	<div id="panes">
+		<div id="text"></div>
+		<div id="wysiwyg"></div>
+		<main id="rendered"></main>
+	</div>
+	<script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;
 	}

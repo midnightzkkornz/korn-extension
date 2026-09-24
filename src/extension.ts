@@ -2,14 +2,6 @@ import * as vscode from 'vscode';
 import { RmdEditorProvider } from './rmdEditorProvider';
 import { SyncViewProvider } from './syncViewProvider';
 
-// View types a .r.md file can be switched between ('default' = plain text editor)
-const VIEWS = {
-	korn: RmdEditorProvider.viewType,
-	text: 'default',
-	preview: 'vscode.markdown.preview.editor',
-	mdEditor: 'vscode.markdown.editor',
-};
-
 // Called once when the extension is activated
 export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
@@ -18,7 +10,7 @@ export function activate(context: vscode.ExtensionContext) {
 			new SyncViewProvider(context.extensionUri)
 		),
 
-		vscode.window.registerCustomEditorProvider(RmdEditorProvider.viewType, new RmdEditorProvider()),
+		vscode.window.registerCustomEditorProvider(RmdEditorProvider.viewType, new RmdEditorProvider(context.extensionUri)),
 
 		// Sync button (editor title bar + side panel). UI only for now.
 		vscode.commands.registerCommand('korn.sync', (uri?: vscode.Uri) => {
@@ -54,11 +46,8 @@ export function activate(context: vscode.ExtensionContext) {
 			await vscode.commands.executeCommand('vscode.open', fileUri);
 		}),
 
-		// View switcher nav (editor title bar + Korn toolbar)
-		vscode.commands.registerCommand('korn.openKorn', (uri?: vscode.Uri) => switchView(uri, VIEWS.korn)),
-		vscode.commands.registerCommand('korn.openText', (uri?: vscode.Uri) => switchView(uri, VIEWS.text)),
-		vscode.commands.registerCommand('korn.openPreview', (uri?: vscode.Uri) => switchView(uri, VIEWS.preview)),
-		vscode.commands.registerCommand('korn.openMdEditor', (uri?: vscode.Uri) => switchView(uri, VIEWS.mdEditor))
+		// Back to the Korn editor from any other editor (editor title bar)
+		vscode.commands.registerCommand('korn.openKorn', (uri?: vscode.Uri) => switchView(uri, RmdEditorProvider.viewType))
 	);
 }
 
