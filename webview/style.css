@@ -1,5 +1,7 @@
 html, body {
 	height: 100%;
+	padding: 0;
+	overflow: hidden;
 }
 
 body {
@@ -120,40 +122,62 @@ body[data-mode='preview'] #rendered { border-left: 1px solid var(--vscode-panel-
 /* ---- Milkdown (WYSIWYG) ---- */
 #wysiwyg .ProseMirror {
 	min-height: 100%;
+	box-sizing: border-box;
 	outline: none;
 }
 
-/* ---- GitHub markdown (theme CSS injected by theme.ts), layout like a GitHub README ---- */
-#rendered.markdown-body,
-#wysiwyg .markdown-body {
-	box-sizing: border-box;
-	padding: 32px max(32px, calc((100% - 980px) / 2 + 45px));
+/* ---- Rendered markdown: styled by VS Code's own markdown.css / highlight.css ---- */
+#rendered,
+#wysiwyg .ProseMirror {
+	padding: 1em 26px;
 }
-body[data-mode='preview'] #rendered.markdown-body { padding: 24px 32px; }
 
-/* ---- Markdown source colors (GitHub-style) for the Text / Preview editor ---- */
-#text .tok-heading { font-weight: 600; }
-#text .tok-strong { font-weight: 600; }
+/* ---- Markdown source colors, same as editing .md in VS Code (Dark+ / Light+) ---- */
+#text .tok-heading,
+#text .tok-strong { font-weight: bold; }
 #text .tok-emphasis { font-style: italic; }
 #text .tok-strike { text-decoration: line-through; }
-#text .tok-meta,
-#text .tok-quote { color: var(--vscode-descriptionForeground); }
 
-body.vscode-dark #text .tok-heading,
-body.vscode-high-contrast:not(.vscode-high-contrast-light) #text .tok-heading { color: #1f6feb; }
-body.vscode-dark #text :is(.tok-link, .tok-url, .tok-string) { color: #a5d6ff; }
-body.vscode-dark #text :is(.tok-code, .tok-constant) { color: #79c0ff; }
-body.vscode-dark #text .tok-list { color: #f2cc60; }
-body.vscode-dark #text .tok-keyword { color: #ff7b72; }
-body.vscode-dark #text .tok-comment { color: #8b949e; }
-body.vscode-dark #text .tok-entity { color: #d2a8ff; }
-body.vscode-dark #text .tok-tag { color: #7ee787; }
-
-body.vscode-light #text .tok-heading { color: #0550ae; }
-body.vscode-light #text :is(.tok-link, .tok-url, .tok-string) { color: #0a3069; }
-body.vscode-light #text :is(.tok-code, .tok-constant) { color: #0550ae; }
-body.vscode-light #text .tok-list { color: #3b2300; }
-body.vscode-light #text .tok-keyword { color: #cf222e; }
-body.vscode-light #text .tok-comment { color: #6e7781; }
-body.vscode-light #text .tok-entity { color: #8250df; }
-body.vscode-light #text .tok-tag { color: #116329; }
+body:not(.vscode-light):not(.vscode-high-contrast-light) #text {
+	--tok-heading: #569cd6;
+	--tok-code: #ce9178;
+	--tok-quote: #6a9955;
+	--tok-list: #6796e6;
+	--tok-keyword: #569cd6;
+	--tok-string: #ce9178;
+	--tok-comment: #6a9955;
+	--tok-number: #b5cea8;
+	--tok-function: #dcdcaa;
+	--tok-type: #4ec9b0;
+	--tok-variable: #9cdcfe;
+	--tok-tag: #569cd6;
+	--tok-attr: #9cdcfe;
+}
+body:is(.vscode-light, .vscode-high-contrast-light) #text {
+	--tok-heading: #800000;
+	--tok-code: #800000;
+	--tok-quote: #0451a5;
+	--tok-list: #0451a5;
+	--tok-keyword: #0000ff;
+	--tok-string: #a31515;
+	--tok-comment: #008000;
+	--tok-number: #098658;
+	--tok-function: #795e26;
+	--tok-type: #267f99;
+	--tok-variable: #001080;
+	--tok-tag: #800000;
+	--tok-attr: #e50000;
+}
+#text .tok-heading { color: var(--tok-heading); }
+#text .tok-code { color: var(--tok-code); }
+#text .tok-quote { color: var(--tok-quote); }
+#text .tok-list { color: var(--tok-list); }
+#text .tok-keyword { color: var(--tok-keyword); }
+#text .tok-string { color: var(--tok-string); }
+#text .tok-comment { color: var(--tok-comment); }
+#text .tok-number { color: var(--tok-number); }
+#text .tok-function { color: var(--tok-function); }
+#text .tok-type { color: var(--tok-type); }
+#text .tok-variable { color: var(--tok-variable); }
+#text .tok-tag { color: var(--tok-tag); }
+#text .tok-attr { color: var(--tok-attr); }

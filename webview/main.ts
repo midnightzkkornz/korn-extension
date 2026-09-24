@@ -2,9 +2,9 @@ import { markdown } from '@codemirror/lang-markdown';
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { Annotation } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
-import { tags } from '@lezer/highlight';
+import { styleTags, Tag, tags } from '@lezer/highlight';
 import { basicSetup } from 'codemirror';
-import { Editor, editorViewCtx, editorViewOptionsCtx, rootCtx, defaultValueCtx } from '@milkdown/kit/core';
+import { Editor, editorViewCtx, rootCtx, defaultValueCtx } from '@milkdown/kit/core';
 import { history } from '@milkdown/kit/plugin/history';
 import { listener, listenerCtx } from '@milkdown/kit/plugin/listener';
 import { commonmark } from '@milkdown/kit/preset/commonmark';
@@ -12,7 +12,6 @@ import { gfm } from '@milkdown/kit/preset/gfm';
 import { replaceAll } from '@milkdown/kit/utils';
 import '@milkdown/kit/prose/view/style/prosemirror.css';
 import './style.css';
-import { watchTheme } from './theme';
 
 type Mode = 'korn' | 'text' | 'preview' | 'editor';
 
@@ -35,9 +34,6 @@ const wysiwygPane = document.getElementById('wysiwyg')!;
 let currentText = '';
 let mode: Mode = vscode.getState()?.mode ?? 'korn';
 
-watchTheme();
-rendered.classList.add('markdown-body');
-
 // ---- Sending edits back to VS Code (debounced) ----
 let editTimer: ReturnType<typeof setTimeout> | undefined;
 let localSeq = 0;
@@ -52,27 +48,27 @@ function onLocalEdit(text: string) {
 }
 
 // ---- Text + Preview modes: CodeMirror ----
-// Token classes are colored GitHub-style in style.css (replaces CodeMirror's default style,
-// which underlines headings)
+// Token classes are colored like VS Code's Dark+/Light+ markdown in style.css
+// (replaces CodeMirror's default style, which underlines headings)
+const listMark = Tag.define();
 const markdownHighlight = HighlightStyle.define([
 	{ tag: tags.heading, class: 'tok-heading' },
 	{ tag: tags.strong, class: 'tok-strong' },
 	{ tag: tags.emphasis, class: 'tok-emphasis' },
 	{ tag: tags.strikethrough, class: 'tok-strike' },
-	{ tag: tags.link, class: 'tok-link' },
-	{ tag: tags.url, class: 'tok-url' },
 	{ tag: tags.monospace, class: 'tok-code' },
 	{ tag: tags.quote, class: 'tok-quote' },
-	{ tag: [tags.processingInstruction, tags.contentSeparator], class: 'tok-meta' },
-	{ tag: tags.list, class: 'tok-list' },
+	{ tag: listMark, class: 'tok-list' },
 	// Code inside fenced blocks
-	{ tag: [tags.keyword, tags.operatorKeyword, tags.modifier], class: 'tok-keyword' },
+	{ tag: [tags.keyword, tags.operatorKeyword, tags.modifier, tags.bool, tags.null], class: 'tok-keyword' },
 	{ tag: [tags.string, tags.regexp], class: 'tok-string' },
-	{ tag: [tags.comment], class: 'tok-comment' },
-	{ tag: [tags.number, tags.bool, tags.null, tags.atom, tags.constant(tags.name)], class: 'tok-constant' },
-	{ tag: [tags.function(tags.variableName), tags.function(tags.propertyName), tags.className, tags.typeName], class: 'tok-entity' },
-	{ tag: [tags.tagName], class: 'tok-tag' },
-	{ tag: [tags.attributeName, tags.propertyName], class: 'tok-constant' },
+	{ tag: tags.comment, class: 'tok-comment' },
+	{ tag: tags.number, class: 'tok-number' },
+	{ tag: [tags.function(tags.variableName), tags.function(tags.propertyName)], class: 'tok-function' },
+	{ tag: [tags.className, tags.typeName, tags.namespace], class: 'tok-type' },
+	{ tag: [tags.variableName, tags.propertyName, tags.definition(tags.variableName)], class: 'tok-variable' },
+	{ tag: tags.tagName, class: 'tok-tag' },
+	{ tag: tags.attributeName, class: 'tok-attr' },
 ]);
 
 const External = Annotation.define<boolean>();
@@ -80,7 +76,8 @@ const codeMirror = new EditorView({
 	parent: textPane,
 	extensions: [
 		basicSetup,
-		markdown(),
+		// ListMark ("-", "1.") gets its own tag so it can be colored like VS Code
+		markdown({ extensions: { props: [styleTags({ 'ListItem/ListMark': listMark })] } }),
 		syntaxHighlighting(markdownHighlight),
 		EditorView.lineWrapping,
 		EditorView.theme({
@@ -116,7 +113,6 @@ async function showMilkdown(text: string) {
 			.config((ctx) => {
 				ctx.set(rootCtx, wysiwygPane);
 				ctx.set(defaultValueCtx, text);
-				ctx.update(editorViewOptionsCtx, (prev) => ({ ...prev, attributes: { class: 'markdown-body' } }));
 				ctx.get(listenerCtx).markdownUpdated((ctx, md) => {
 					// Only forward changes the user typed, not our own replaceAll()
 					if (ctx.get(editorViewCtx).hasFocus()) {

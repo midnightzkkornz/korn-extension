@@ -13,10 +13,12 @@ export class RmdEditorProvider implements vscode.CustomTextEditorProvider {
 
 	async resolveCustomTextEditor(document: vscode.TextDocument, panel: vscode.WebviewPanel): Promise<void> {
 		const docFolder = vscode.Uri.joinPath(document.uri, '..');
+		const markdownMedia = markdownMediaUri();
 		panel.webview.options = {
 			enableScripts: true,
 			localResourceRoots: [
 				vscode.Uri.joinPath(this.extensionUri, 'out'),
+				...(markdownMedia ? [markdownMedia] : []),
 				docFolder,
 				...(vscode.workspace.workspaceFolders?.map((f) => f.uri) ?? []),
 			],
@@ -84,6 +86,13 @@ export class RmdEditorProvider implements vscode.CustomTextEditorProvider {
 		const fileName = escapeHtml(vscode.workspace.asRelativePath(document.uri));
 		const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'out', 'webview.js'));
 		const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'out', 'webview.css'));
+		// Same stylesheets as VS Code's own Markdown Preview, so rendered markdown looks identical
+		const media = markdownMediaUri();
+		const markdownStyles = media
+			? ['markdown.css', 'highlight.css']
+					.map((file) => `<link rel="stylesheet" href="${webview.asWebviewUri(vscode.Uri.joinPath(media, file))}">`)
+					.join('\n\t')
+			: '';
 
 		return /* html */ `<!DOCTYPE html>
 <html lang="en">
@@ -91,6 +100,7 @@ export class RmdEditorProvider implements vscode.CustomTextEditorProvider {
 	<meta charset="UTF-8">
 	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} https: data:; font-src ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	${markdownStyles}
 	<link rel="stylesheet" href="${styleUri}">
 </head>
 <body data-mode="korn">
@@ -115,6 +125,12 @@ export class RmdEditorProvider implements vscode.CustomTextEditorProvider {
 </body>
 </html>`;
 	}
+}
+
+// media/ folder of VS Code's built-in markdown extension (markdown.css, highlight.css)
+function markdownMediaUri(): vscode.Uri | undefined {
+	const ext = vscode.extensions.getExtension('vscode.markdown-language-features');
+	return ext ? vscode.Uri.joinPath(ext.extensionUri, 'media') : undefined;
 }
 
 async function renderMarkdown(text: string): Promise<string> {
