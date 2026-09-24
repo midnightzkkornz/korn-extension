@@ -37,7 +37,7 @@ export function activate(context: vscode.ExtensionContext) {
 				await vscode.workspace.fs.stat(fileUri);
 				vscode.window.showWarningMessage(`มีไฟล์ ${name.trim()}.r.md อยู่แล้ว`);
 			} catch {
-				await vscode.workspace.fs.writeFile(fileUri, Buffer.from(`# ${name.trim()}\n\n`, 'utf8'));
+				await vscode.workspace.fs.writeFile(fileUri, new TextEncoder().encode(`# ${name.trim()}\n\n`));
 			}
 			await vscode.window.showTextDocument(fileUri);
 		})
