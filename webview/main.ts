@@ -180,7 +180,9 @@ function setSyncState(state: 'syncing' | 'done' | 'error' | 'idle', time?: strin
 	syncButton.disabled = state === 'syncing';
 	if (state === 'done' && time) {
 		const date = new Date(time);
-		lastSyncLabel = `Last sync: ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+		const pad = (n: number) => String(n).padStart(2, '0');
+		// Same format as the commit message: YYYY-MM-DD HH:mm
+		lastSyncLabel = `Last sync: ${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 	}
 	statusText.textContent =
 		state === 'syncing' ? 'Syncing…' : state === 'error' ? 'Sync failed' : lastSyncLabel;
