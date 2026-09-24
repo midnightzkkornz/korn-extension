@@ -1,7 +1,7 @@
 {
   "name": "korn-extension",
   "displayName": "Korn Extension",
-  "description": "Hello World VS Code extension",
+  "description": "Sync UI for .r.md markdown files",
   "publisher": "local",
   "version": "0.0.1",
   "engines": {
@@ -10,12 +10,52 @@
   "categories": ["Other"],
   "main": "./out/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "korn",
+          "title": "Korn Sync",
+          "icon": "media/korn.svg"
+        }
+      ]
+    },
+    "views": {
+      "korn": [
+        {
+          "type": "webview",
+          "id": "korn.syncView",
+          "name": "Sync"
+        }
+      ]
+    },
     "commands": [
       {
-        "command": "korn-extension.helloWorld",
-        "title": "Korn: Hello World"
+        "command": "korn.sync",
+        "title": "Korn: Sync",
+        "icon": "$(sync)"
+      },
+      {
+        "command": "korn.newFile",
+        "title": "Korn: New .r.md File",
+        "icon": "$(new-file)"
       }
-    ]
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "korn.sync",
+          "when": "resourceFilename =~ /\\.r\\.md$/",
+          "group": "navigation"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "korn.newFile",
+          "when": "view == korn.syncView",
+          "group": "navigation"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

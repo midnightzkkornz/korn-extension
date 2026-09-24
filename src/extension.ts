@@ -1,12 +1,47 @@
 import * as vscode from 'vscode';
+import { SyncViewProvider } from './syncViewProvider';
 
-// Called once when the extension is activated (first time the command runs)
+// Called once when the extension is activated
 export function activate(context: vscode.ExtensionContext) {
-	const disposable = vscode.commands.registerCommand('korn-extension.helloWorld', () => {
-		vscode.window.showInformationMessage('Hello World from Korn Extension!');
-	});
+	context.subscriptions.push(
+		vscode.window.registerWebviewViewProvider(
+			SyncViewProvider.viewId,
+			new SyncViewProvider(context.extensionUri)
+		),
 
-	context.subscriptions.push(disposable);
+		// Sync button (editor title bar + side panel). UI only for now.
+		vscode.commands.registerCommand('korn.sync', (uri?: vscode.Uri) => {
+			const target = uri ?? vscode.window.activeTextEditor?.document.uri;
+			const name = target ? vscode.workspace.asRelativePath(target) : 'workspace';
+			vscode.window.showInformationMessage(`Sync: ยังไม่ได้ทำ logic (${name})`);
+		}),
+
+		vscode.commands.registerCommand('korn.newFile', async () => {
+			const folder = vscode.workspace.workspaceFolders?.[0];
+			if (!folder) {
+				vscode.window.showWarningMessage('เปิดโฟลเดอร์ก่อนสร้างไฟล์ .r.md');
+				return;
+			}
+
+			const name = await vscode.window.showInputBox({
+				prompt: 'ชื่อไฟล์ (ไม่ต้องใส่ .r.md)',
+				placeHolder: 'notes',
+				validateInput: (value) => (value.trim() ? undefined : 'กรุณาใส่ชื่อไฟล์'),
+			});
+			if (!name) {
+				return;
+			}
+
+			const fileUri = vscode.Uri.joinPath(folder.uri, `${name.trim()}.r.md`);
+			try {
+				await vscode.workspace.fs.stat(fileUri);
+				vscode.window.showWarningMessage(`มีไฟล์ ${name.trim()}.r.md อยู่แล้ว`);
+			} catch {
+				await vscode.workspace.fs.writeFile(fileUri, Buffer.from(`# ${name.trim()}\n\n`, 'utf8'));
+			}
+			await vscode.window.showTextDocument(fileUri);
+		})
+	);
 }
 
 export function deactivate() {}
