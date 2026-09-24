@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { getNonce } from './util';
 
 type PanelMessage = { type: 'sync' | 'replace' | 'keep' };
 
@@ -105,13 +106,4 @@ export class SyncViewProvider implements vscode.WebviewViewProvider {
 </body>
 </html>`;
 	}
-}
-
-function getNonce(): string {
-	const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-	let nonce = '';
-	for (let i = 0; i < 32; i++) {
-		nonce += chars.charAt(Math.floor(Math.random() * chars.length));
-	}
-	return nonce;
 }

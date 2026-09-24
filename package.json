@@ -7,7 +7,9 @@
   "engines": {
     "vscode": "^1.90.0"
   },
-  "categories": ["Other"],
+  "categories": [
+    "Other"
+  ],
   "main": "./out/extension.js",
   "contributes": {
     "viewsContainers": {
@@ -28,6 +30,18 @@
         }
       ]
     },
+    "customEditors": [
+      {
+        "viewType": "korn.rmdEditor",
+        "displayName": "Korn Markdown",
+        "selector": [
+          {
+            "filenamePattern": "*.r.md"
+          }
+        ],
+        "priority": "default"
+      }
+    ],
     "commands": [
       {
         "command": "korn.sync",
@@ -38,10 +52,20 @@
         "command": "korn.newFile",
         "title": "Korn: New .r.md File",
         "icon": "$(new-file)"
+      },
+      {
+        "command": "korn.openPreview",
+        "title": "Korn: Open Preview",
+        "icon": "$(open-preview)"
       }
     ],
     "menus": {
       "editor/title": [
+        {
+          "command": "korn.openPreview",
+          "when": "resourceFilename =~ /\\.r\\.md$/ && activeCustomEditorId != 'korn.rmdEditor'",
+          "group": "navigation"
+        },
         {
           "command": "korn.sync",
           "when": "resourceFilename =~ /\\.r\\.md$/",

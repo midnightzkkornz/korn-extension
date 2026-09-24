@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { RmdEditorProvider } from './rmdEditorProvider';
 import { SyncViewProvider } from './syncViewProvider';
 
 // Called once when the extension is activated
@@ -8,6 +9,8 @@ export function activate(context: vscode.ExtensionContext) {
 			SyncViewProvider.viewId,
 			new SyncViewProvider(context.extensionUri)
 		),
+
+		vscode.window.registerCustomEditorProvider(RmdEditorProvider.viewType, new RmdEditorProvider()),
 
 		// Sync button (editor title bar + side panel). UI only for now.
 		vscode.commands.registerCommand('korn.sync', (uri?: vscode.Uri) => {
@@ -39,7 +42,15 @@ export function activate(context: vscode.ExtensionContext) {
 			} catch {
 				await vscode.workspace.fs.writeFile(fileUri, new TextEncoder().encode(`# ${name.trim()}\n\n`));
 			}
-			await vscode.window.showTextDocument(fileUri);
+			// vscode.open respects the default custom editor for *.r.md
+			await vscode.commands.executeCommand('vscode.open', fileUri);
+		}),
+
+		vscode.commands.registerCommand('korn.openPreview', (uri?: vscode.Uri) => {
+			const target = uri ?? vscode.window.activeTextEditor?.document.uri;
+			if (target) {
+				vscode.commands.executeCommand('vscode.openWith', target, RmdEditorProvider.viewType);
+			}
 		})
 	);
 }
