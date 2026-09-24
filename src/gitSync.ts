@@ -49,6 +49,20 @@ function formatDate(date: Date): string {
 	return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+// Commit time of the newest commit touching this file that is already on the remote
+// (git remembers this, so it survives reloads). undefined = never synced / no upstream.
+export async function getLastSyncTime(uri: vscode.Uri): Promise<Date | undefined> {
+	try {
+		const out = await runGit(
+			['log', '-1', '--format=%cI', '@{upstream}', '--', path.basename(uri.fsPath)],
+			path.dirname(uri.fsPath)
+		);
+		return out.trim() ? new Date(out.trim()) : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
 // Save → git add → commit only this file → push
 export async function syncFile(uri: vscode.Uri): Promise<SyncResult> {
 	const document = vscode.workspace.textDocuments.find((d) => d.uri.toString() === uri.toString());

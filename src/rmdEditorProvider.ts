@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import type { SyncResult } from './gitSync';
+import { getLastSyncTime, SyncResult } from './gitSync';
 import { getNonce } from './util';
 
 // Messages from the webview (see webview/main.ts)
@@ -56,6 +56,13 @@ export class RmdEditorProvider implements vscode.CustomTextEditorProvider {
 			);
 		};
 
+		const postLastSync = async () => {
+			const time = await getLastSyncTime(document.uri);
+			if (time) {
+				panel.webview.postMessage({ type: 'syncState', state: 'done', time: time.toISOString() });
+			}
+		};
+
 		const changeSub = vscode.workspace.onDidChangeTextDocument((e) => {
 			if (e.document.uri.toString() === document.uri.toString() && e.contentChanges.length > 0) {
 				sendUpdate('update');
@@ -71,6 +78,7 @@ export class RmdEditorProvider implements vscode.CustomTextEditorProvider {
 				case 'ready':
 					ackSeq = 0; // webview (re)loaded, its edit counter starts over
 					sendUpdate('init');
+					postLastSync();
 					break;
 				case 'edit':
 					applyWebviewEdit(message.text, message.seq);
@@ -80,9 +88,12 @@ export class RmdEditorProvider implements vscode.CustomTextEditorProvider {
 					await editQueue; // make sure everything typed so far is in the document
 					try {
 						const result = await vscode.commands.executeCommand<SyncResult | undefined>('korn.sync', document.uri);
-						panel.webview.postMessage(
-							result ? { type: 'syncState', state: 'done', time: result.time.toISOString() } : { type: 'syncState', state: 'idle' }
-						);
+						if (result) {
+							const time = (await getLastSyncTime(document.uri)) ?? result.time;
+							panel.webview.postMessage({ type: 'syncState', state: 'done', time: time.toISOString() });
+						} else {
+							panel.webview.postMessage({ type: 'syncState', state: 'idle' });
+						}
 					} catch {
 						panel.webview.postMessage({ type: 'syncState', state: 'error' });
 					}
