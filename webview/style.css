@@ -43,6 +43,9 @@ body {
 	border-radius: 50%;
 	background: var(--vscode-charts-yellow);
 }
+.toolbar .status[data-state='done'] .dot { background: var(--vscode-charts-green); }
+.toolbar .status[data-state='error'] .dot { background: var(--vscode-charts-red); }
+.toolbar .status[data-state='syncing'] .dot { background: var(--vscode-charts-blue); }
 .toolbar .spacer { flex: 1; }
 .toolbar button {
 	padding: 4px 12px;
@@ -55,6 +58,7 @@ body {
 	background: var(--vscode-button-background);
 }
 .toolbar button:hover { background: var(--vscode-button-hoverBackground); }
+.toolbar button:disabled { opacity: 0.6; cursor: default; }
 
 /* View switcher (segmented) */
 .nav {

@@ -18,7 +18,9 @@ const MODES: Mode[] = ['view', 'text', 'preview', 'editor'];
 
 // Messages from the extension
 // ackSeq = the last of our edits that is already in the VS Code document
-type HostMessage = { type: 'init' | 'update'; text: string; html: string; ackSeq: number };
+type HostMessage =
+	| { type: 'init' | 'update'; text: string; html: string; ackSeq: number }
+	| { type: 'syncState'; state: 'syncing' | 'done' | 'error' | 'idle'; time?: string };
 
 declare function acquireVsCodeApi(): {
 	postMessage(message: unknown): void;
@@ -39,6 +41,13 @@ let mode: Mode = savedMode && MODES.includes(savedMode) ? savedMode : 'view';
 // ---- Sending edits back to VS Code (debounced) ----
 let editTimer: ReturnType<typeof setTimeout> | undefined;
 let localSeq = 0;
+function flushEdit() {
+	if (editTimer !== undefined) {
+		clearTimeout(editTimer);
+		editTimer = undefined;
+		vscode.postMessage({ type: 'edit', text: currentText, seq: localSeq });
+	}
+}
 function onLocalEdit(text: string) {
 	if (text === currentText) {
 		return;
@@ -46,7 +55,7 @@ function onLocalEdit(text: string) {
 	currentText = text;
 	localSeq++;
 	clearTimeout(editTimer);
-	editTimer = setTimeout(() => vscode.postMessage({ type: 'edit', text: currentText, seq: localSeq }), 150);
+	editTimer = setTimeout(flushEdit, 150);
 }
 
 // ---- Text + Preview modes: CodeMirror ----
@@ -155,11 +164,35 @@ function setMode(next: Mode) {
 for (const button of document.querySelectorAll<HTMLButtonElement>('.nav button')) {
 	button.addEventListener('click', () => setMode(button.dataset.mode as Mode));
 }
-document.getElementById('sync')!.addEventListener('click', () => vscode.postMessage({ type: 'sync' }));
+const syncButton = document.getElementById('sync') as HTMLButtonElement;
+syncButton.addEventListener('click', () => {
+	flushEdit(); // send the latest text before syncing
+	vscode.postMessage({ type: 'sync' });
+});
+
+// ---- Sync status in the toolbar ----
+const statusEl = document.getElementById('status')!;
+const statusText = document.getElementById('status-text')!;
+let lastSyncLabel = 'Last sync: never';
+
+function setSyncState(state: 'syncing' | 'done' | 'error' | 'idle', time?: string) {
+	statusEl.dataset.state = state;
+	syncButton.disabled = state === 'syncing';
+	if (state === 'done' && time) {
+		const date = new Date(time);
+		lastSyncLabel = `Last sync: ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+	}
+	statusText.textContent =
+		state === 'syncing' ? 'Syncing…' : state === 'error' ? 'Sync failed' : lastSyncLabel;
+}
 
 // ---- Messages from the extension ----
 window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
 	const message = event.data;
+	if (message.type === 'syncState') {
+		setSyncState(message.state, message.time);
+		return;
+	}
 	rendered.innerHTML = message.html;
 
 	// Take the document text only when all our own edits are in it (otherwise it's stale)

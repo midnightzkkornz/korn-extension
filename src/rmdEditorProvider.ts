@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import type { SyncResult } from './gitSync';
 import { getNonce } from './util';
 
 // Messages from the webview (see webview/main.ts)
@@ -65,7 +66,7 @@ export class RmdEditorProvider implements vscode.CustomTextEditorProvider {
 			changeSub.dispose();
 		});
 
-		panel.webview.onDidReceiveMessage((message: EditorMessage) => {
+		panel.webview.onDidReceiveMessage(async (message: EditorMessage) => {
 			switch (message.type) {
 				case 'ready':
 					ackSeq = 0; // webview (re)loaded, its edit counter starts over
@@ -74,9 +75,19 @@ export class RmdEditorProvider implements vscode.CustomTextEditorProvider {
 				case 'edit':
 					applyWebviewEdit(message.text, message.seq);
 					break;
-				case 'sync':
-					vscode.commands.executeCommand('korn.sync', document.uri);
+				case 'sync': {
+					panel.webview.postMessage({ type: 'syncState', state: 'syncing' });
+					await editQueue; // make sure everything typed so far is in the document
+					try {
+						const result = await vscode.commands.executeCommand<SyncResult | undefined>('korn.sync', document.uri);
+						panel.webview.postMessage(
+							result ? { type: 'syncState', state: 'done', time: result.time.toISOString() } : { type: 'syncState', state: 'idle' }
+						);
+					} catch {
+						panel.webview.postMessage({ type: 'syncState', state: 'error' });
+					}
 					break;
+				}
 			}
 		});
 	}
@@ -112,7 +123,7 @@ export class RmdEditorProvider implements vscode.CustomTextEditorProvider {
 			<button data-mode="editor" title="WYSIWYG editor">Editor</button>
 		</div>
 		<span class="file">${fileName}</span>
-		<span class="status"><span class="dot"></span>Last sync: never</span>
+		<span class="status" id="status"><span class="dot"></span><span id="status-text">Last sync: never</span></span>
 		<span class="spacer"></span>
 		<button id="sync">⟳ Sync</button>
 	</div>

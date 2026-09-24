@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { SyncResult, syncFile } from './gitSync';
 import { RmdEditorProvider } from './rmdEditorProvider';
 import { SyncViewProvider } from './syncViewProvider';
 
@@ -12,11 +13,31 @@ export function activate(context: vscode.ExtensionContext) {
 
 		vscode.window.registerCustomEditorProvider(RmdEditorProvider.viewType, new RmdEditorProvider(context.extensionUri)),
 
-		// Sync button (editor title bar + side panel). UI only for now.
-		vscode.commands.registerCommand('korn.sync', (uri?: vscode.Uri) => {
+		// Sync button (Korn toolbar, editor title bar, side panel): add + commit + push this file
+		vscode.commands.registerCommand('korn.sync', async (uri?: vscode.Uri): Promise<SyncResult | undefined> => {
 			const target = activeUri(uri);
-			const name = target ? vscode.workspace.asRelativePath(target) : 'workspace';
-			vscode.window.showInformationMessage(`Sync: ยังไม่ได้ทำ logic (${name})`);
+			if (!target || !target.path.endsWith('.r.md')) {
+				vscode.window.showWarningMessage('เปิดไฟล์ .r.md ก่อนกด Sync');
+				return undefined;
+			}
+
+			const name = vscode.workspace.asRelativePath(target);
+			try {
+				const result = await vscode.window.withProgress(
+					{ location: vscode.ProgressLocation.Notification, title: `Sync ${name}…` },
+					() => syncFile(target)
+				);
+				vscode.window.showInformationMessage(
+					result.committed ? `Synced: ${result.message}` : `ไม่มีการเปลี่ยนแปลงใน ${name} — push แล้ว`
+				);
+				return result;
+			} catch (error) {
+				const detail = error instanceof Error ? error.message : String(error);
+				vscode.window
+					.showErrorMessage(`Sync ${name} ไม่สำเร็จ: ${detail}`, 'Open Source Control')
+					.then((choice) => choice && vscode.commands.executeCommand('workbench.view.scm'));
+				throw error;
+			}
 		}),
 
 		vscode.commands.registerCommand('korn.newFile', async () => {
