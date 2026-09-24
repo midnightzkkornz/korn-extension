@@ -45,31 +45,63 @@
     "commands": [
       {
         "command": "korn.sync",
-        "title": "Korn: Sync",
+        "category": "Korn",
+        "title": "Sync",
         "icon": "$(sync)"
       },
       {
         "command": "korn.newFile",
-        "title": "Korn: New .r.md File",
+        "category": "Korn",
+        "title": "New .r.md File",
         "icon": "$(new-file)"
       },
       {
+        "command": "korn.openKorn",
+        "category": "Korn",
+        "title": "Korn View"
+      },
+      {
+        "command": "korn.openText",
+        "category": "Korn",
+        "title": "Text Editor"
+      },
+      {
         "command": "korn.openPreview",
-        "title": "Korn: Open Preview",
-        "icon": "$(open-preview)"
+        "category": "Korn",
+        "title": "Markdown Preview"
+      },
+      {
+        "command": "korn.openMdEditor",
+        "category": "Korn",
+        "title": "Markdown Editor"
       }
     ],
     "menus": {
       "editor/title": [
         {
-          "command": "korn.openPreview",
+          "command": "korn.openKorn",
           "when": "resourceFilename =~ /\\.r\\.md$/ && activeCustomEditorId != 'korn.rmdEditor'",
-          "group": "navigation"
+          "group": "navigation@1"
+        },
+        {
+          "command": "korn.openText",
+          "when": "resourceFilename =~ /\\.r\\.md$/ && activeCustomEditorId",
+          "group": "navigation@2"
+        },
+        {
+          "command": "korn.openPreview",
+          "when": "resourceFilename =~ /\\.r\\.md$/ && activeCustomEditorId != 'vscode.markdown.preview.editor'",
+          "group": "navigation@3"
+        },
+        {
+          "command": "korn.openMdEditor",
+          "when": "resourceFilename =~ /\\.r\\.md$/ && activeCustomEditorId != 'vscode.markdown.editor'",
+          "group": "navigation@4"
         },
         {
           "command": "korn.sync",
           "when": "resourceFilename =~ /\\.r\\.md$/",
-          "group": "navigation"
+          "group": "navigation@9"
         }
       ],
       "view/title": [

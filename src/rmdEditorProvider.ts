@@ -1,7 +1,14 @@
 import * as vscode from 'vscode';
 import { getNonce } from './util';
 
-type EditorMessage = { type: 'ready' | 'sync' | 'edit' };
+type NavTarget = 'text' | 'preview' | 'editor';
+type EditorMessage = { type: 'ready' | 'sync' } | { type: 'nav'; target: NavTarget };
+
+const NAV_COMMANDS: Record<NavTarget, string> = {
+	text: 'korn.openText',
+	preview: 'korn.openPreview',
+	editor: 'korn.openMdEditor',
+};
 
 // PDF-style viewer for *.r.md: custom toolbar on top + markdown rendered by VS Code's own engine
 export class RmdEditorProvider implements vscode.CustomTextEditorProvider {
@@ -19,7 +26,7 @@ export class RmdEditorProvider implements vscode.CustomTextEditorProvider {
 			panel.webview.postMessage({ type: 'render', html: await renderMarkdown(document.getText()) });
 		};
 
-		// Re-render when the file is edited in the text editor (Edit button)
+		// Re-render when the file is edited in another view (Text / Markdown Editor)
 		const changeSub = vscode.workspace.onDidChangeTextDocument((e) => {
 			if (e.document.uri.toString() === document.uri.toString()) {
 				update();
@@ -35,8 +42,8 @@ export class RmdEditorProvider implements vscode.CustomTextEditorProvider {
 				case 'sync':
 					vscode.commands.executeCommand('korn.sync', document.uri);
 					break;
-				case 'edit':
-					vscode.commands.executeCommand('vscode.openWith', document.uri, 'default');
+				case 'nav':
+					vscode.commands.executeCommand(NAV_COMMANDS[message.target], document.uri);
 					break;
 			}
 		});
@@ -101,11 +108,26 @@ export class RmdEditorProvider implements vscode.CustomTextEditorProvider {
 			background: var(--vscode-button-background);
 		}
 		.toolbar button:hover { background: var(--vscode-button-hoverBackground); }
-		.toolbar button.secondary {
-			color: var(--vscode-button-secondaryForeground);
-			background: var(--vscode-button-secondaryBackground);
+
+		/* View switcher (segmented) */
+		.nav {
+			display: flex;
+			border: 1px solid var(--vscode-panel-border);
+			border-radius: 4px;
+			overflow: hidden;
 		}
-		.toolbar button.secondary:hover { background: var(--vscode-button-secondaryHoverBackground); }
+		.toolbar .nav button {
+			border-radius: 0;
+			color: var(--vscode-foreground);
+			background: transparent;
+		}
+		.toolbar .nav button + button { border-left: 1px solid var(--vscode-panel-border); }
+		.toolbar .nav button:hover { background: var(--vscode-toolbar-hoverBackground); }
+		.toolbar .nav button.active {
+			cursor: default;
+			color: var(--vscode-button-foreground);
+			background: var(--vscode-button-background);
+		}
 
 		/* Rendered markdown (close to VS Code's markdown preview) */
 		main {
@@ -148,10 +170,15 @@ export class RmdEditorProvider implements vscode.CustomTextEditorProvider {
 </head>
 <body>
 	<div class="toolbar">
+		<div class="nav">
+			<button class="active" title="Korn View">Korn</button>
+			<button data-target="text" title="Text Editor">Text</button>
+			<button data-target="preview" title="Markdown Preview">Preview</button>
+			<button data-target="editor" title="Markdown Editor">Editor</button>
+		</div>
 		<span class="file">${fileName}</span>
 		<span class="status"><span class="dot"></span>Last sync: never</span>
 		<span class="spacer"></span>
-		<button id="edit" class="secondary">✎ Edit</button>
 		<button id="sync">⟳ Sync</button>
 	</div>
 	<main id="content"></main>
@@ -160,8 +187,9 @@ export class RmdEditorProvider implements vscode.CustomTextEditorProvider {
 		const vscode = acquireVsCodeApi();
 		const content = document.getElementById('content');
 
-		for (const id of ['edit', 'sync']) {
-			document.getElementById(id).addEventListener('click', () => vscode.postMessage({ type: id }));
+		document.getElementById('sync').addEventListener('click', () => vscode.postMessage({ type: 'sync' }));
+		for (const button of document.querySelectorAll('.nav button[data-target]')) {
+			button.addEventListener('click', () => vscode.postMessage({ type: 'nav', target: button.dataset.target }));
 		}
 
 		window.addEventListener('message', (event) => {
