@@ -13,7 +13,8 @@ import { replaceAll } from '@milkdown/kit/utils';
 import '@milkdown/kit/prose/view/style/prosemirror.css';
 import './style.css';
 
-type Mode = 'korn' | 'text' | 'preview' | 'editor';
+type Mode = 'view' | 'text' | 'preview' | 'editor';
+const MODES: Mode[] = ['view', 'text', 'preview', 'editor'];
 
 // Messages from the extension
 // ackSeq = the last of our edits that is already in the VS Code document
@@ -32,7 +33,8 @@ const wysiwygPane = document.getElementById('wysiwyg')!;
 
 // Latest markdown known to this webview (kept in sync with the VS Code document)
 let currentText = '';
-let mode: Mode = vscode.getState()?.mode ?? 'korn';
+const savedMode = vscode.getState()?.mode;
+let mode: Mode = savedMode && MODES.includes(savedMode) ? savedMode : 'view';
 
 // ---- Sending edits back to VS Code (debounced) ----
 let editTimer: ReturnType<typeof setTimeout> | undefined;

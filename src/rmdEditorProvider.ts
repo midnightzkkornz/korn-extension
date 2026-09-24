@@ -103,10 +103,10 @@ export class RmdEditorProvider implements vscode.CustomTextEditorProvider {
 	${markdownStyles}
 	<link rel="stylesheet" href="${styleUri}">
 </head>
-<body data-mode="korn">
+<body data-mode="view">
 	<div class="toolbar">
 		<div class="nav">
-			<button data-mode="korn" title="Rendered view">Korn</button>
+			<button data-mode="view" title="Rendered view (read-only)">View</button>
 			<button data-mode="text" title="Edit markdown source">Text</button>
 			<button data-mode="preview" title="Source + live preview">Preview</button>
 			<button data-mode="editor" title="WYSIWYG editor">Editor</button>

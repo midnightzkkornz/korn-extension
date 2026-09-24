@@ -86,7 +86,7 @@ body {
 	min-height: 0;
 	overflow: auto;
 }
-body[data-mode='korn'] #rendered,
+body[data-mode='view'] #rendered,
 body[data-mode='text'] #text,
 body[data-mode='editor'] #wysiwyg {
 	display: block;
