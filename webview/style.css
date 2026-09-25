@@ -90,6 +90,8 @@ body {
 }
 .toolbar .nav button + button { border-left: 1px solid var(--vscode-panel-border); }
 .toolbar .nav button:hover { background: var(--vscode-toolbar-hoverBackground); }
+.toolbar .nav button.resolve-tab { color: var(--vscode-editorWarning-foreground); }
+.toolbar .nav button[hidden] { display: none; }
 .toolbar .nav button.active {
 	color: var(--vscode-button-foreground);
 	background: var(--vscode-button-background);
@@ -101,14 +103,15 @@ body {
 	min-height: 0;
 	display: grid;
 }
-#rendered, #text, #wysiwyg {
+#rendered, #text, #wysiwyg, #resolve {
 	display: none;
 	min-height: 0;
 	overflow: auto;
 }
 body[data-mode='view'] #rendered,
 body[data-mode='text'] #text,
-body[data-mode='editor'] #wysiwyg {
+body[data-mode='editor'] #wysiwyg,
+body[data-mode='resolve'] #resolve {
 	display: block;
 }
 body[data-mode='preview'] #panes { grid-template-columns: 1fr 1fr; }
@@ -201,3 +204,156 @@ body:is(.vscode-light, .vscode-high-contrast-light) #text {
 #text .tok-variable { color: var(--tok-variable); }
 #text .tok-tag { color: var(--tok-tag); }
 #text .tok-attr { color: var(--tok-attr); }
+
+/* ---- Resolve mode (webview/resolve.ts) ---- */
+#resolve {
+	font-family: var(--vscode-font-family);
+	font-size: var(--vscode-font-size);
+	line-height: 1.5;
+}
+#resolve button {
+	padding: 4px 10px;
+	border: none;
+	border-radius: 2px;
+	cursor: pointer;
+	font-family: inherit;
+	font-size: inherit;
+	color: var(--vscode-button-secondaryForeground);
+	background: var(--vscode-button-secondaryBackground);
+}
+#resolve button:hover { background: var(--vscode-button-secondaryHoverBackground); }
+#resolve button.primary {
+	color: var(--vscode-button-foreground);
+	background: var(--vscode-button-background);
+}
+#resolve button.primary:hover { background: var(--vscode-button-hoverBackground); }
+#resolve button:disabled { opacity: 0.5; cursor: default; }
+#resolve button.small { padding: 1px 8px; }
+#resolve button.link {
+	padding: 0;
+	color: var(--vscode-textLink-foreground);
+	background: none;
+}
+#resolve button.link:hover { text-decoration: underline; background: none; }
+#resolve .spacer { flex: 1; }
+#resolve .muted { color: var(--vscode-descriptionForeground); }
+
+.resolve-header {
+	position: sticky;
+	top: 0;
+	z-index: 1;
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 8px 26px;
+	background: var(--vscode-editor-background);
+	border-bottom: 1px solid var(--vscode-panel-border);
+}
+.resolve-progress { font-weight: 600; color: var(--vscode-editorWarning-foreground); }
+.resolve-body { padding: 12px 26px 48px; }
+
+.resolve-context {
+	margin: 0;
+	padding: 2px 0;
+	white-space: pre-wrap;
+	font-family: var(--vscode-editor-font-family);
+	color: var(--vscode-descriptionForeground);
+	opacity: 0.7;
+}
+
+.conflict-card {
+	margin: 8px 0;
+	border: 1px solid var(--vscode-editorWarning-foreground);
+	border-radius: 4px;
+	overflow: hidden;
+}
+.conflict-card.resolved { border-color: var(--vscode-charts-green); }
+.conflict-title {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 4px 10px;
+	font-weight: 600;
+	background: var(--vscode-editorWidget-background);
+}
+.conflict-done { color: var(--vscode-charts-green); font-weight: normal; }
+.conflict-resolved-text {
+	margin: 0;
+	padding: 6px 10px;
+	white-space: pre-wrap;
+	font-family: var(--vscode-editor-font-family);
+}
+
+.conflict-sides { display: grid; grid-template-columns: 1fr 1fr; }
+.conflict-side { min-width: 0; padding: 6px 10px; }
+.conflict-side + .conflict-side { border-left: 1px solid var(--vscode-panel-border); }
+/* Same colors as VS Code's inline merge: current = green, incoming = blue */
+.conflict-side.mine { background: var(--vscode-merge-currentContentBackground, rgba(64, 200, 174, 0.1)); }
+.conflict-side.theirs { background: var(--vscode-merge-incomingContentBackground, rgba(64, 166, 255, 0.1)); }
+.conflict-side-label { font-size: 0.9em; color: var(--vscode-descriptionForeground); }
+/* Highlights: orange = both sides changed the same place, green/blue = changed on one side only */
+/* All selectors start with #resolve so they have equal weight and the later, more specific rule wins */
+#resolve mark { color: inherit; border-radius: 2px; padding: 0 1px; background: var(--vscode-editor-findMatchHighlightBackground); }
+#resolve .conflict-side.mine mark.hl-change,
+#resolve mark.hl-change.mine { background: var(--vscode-merge-currentHeaderBackground, rgba(64, 200, 174, 0.5)); }
+#resolve .conflict-side.theirs mark.hl-change,
+#resolve mark.hl-change.theirs { background: var(--vscode-merge-incomingHeaderBackground, rgba(64, 166, 255, 0.5)); }
+/* conflict: solid orange + outline, so it stands apart from green/blue in every theme */
+#resolve mark.hl-conflict,
+#resolve del.hl-conflict { background: rgba(255, 140, 0, 0.55); outline: 1px solid var(--vscode-charts-orange); }
+#resolve del { margin-right: 0.3em; opacity: 0.55; }
+#resolve del.hl-conflict { opacity: 0.75; }
+.conflict-legend {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px 6px;
+	padding: 4px 10px;
+	font-size: 0.9em;
+	color: var(--vscode-descriptionForeground);
+	border-bottom: 1px solid var(--vscode-panel-border);
+}
+.conflict-legend mark,
+.conflict-legend del { margin-left: 8px; }
+.conflict-legend mark:first-child { margin-left: 0; }
+.conflict-text {
+	margin: 4px 0 0;
+	white-space: pre-wrap;
+	word-break: break-word;
+	font-family: var(--vscode-editor-font-family);
+}
+.conflict-base { padding: 4px 10px; border-top: 1px solid var(--vscode-panel-border); }
+.conflict-base summary { cursor: pointer; color: var(--vscode-descriptionForeground); }
+.conflict-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	padding: 8px 10px;
+	border-top: 1px solid var(--vscode-panel-border);
+}
+.conflict-edit {
+	display: block;
+	box-sizing: border-box;
+	width: calc(100% - 20px);
+	margin: 8px 10px 0;
+	padding: 6px;
+	font-family: var(--vscode-editor-font-family);
+	font-size: var(--vscode-editor-font-size);
+	color: var(--vscode-input-foreground);
+	background: var(--vscode-input-background);
+	border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
+	resize: vertical;
+}
+
+.resolve-result {
+	margin-top: 24px;
+	border: 1px solid var(--vscode-panel-border);
+	border-radius: 4px;
+}
+.resolve-result-title {
+	padding: 4px 10px;
+	font-weight: 600;
+	background: var(--vscode-editorWidget-background);
+}
+.resolve-result .resolve-rendered { padding: 0 16px; }
+.resolve-malformed { padding: 24px 26px; }

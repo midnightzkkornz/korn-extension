@@ -87,6 +87,9 @@ export function activate(context: vscode.ExtensionContext) {
 		// After Accept … + Cmd+S the markers are gone: go back to the Korn editor
 		vscode.workspace.onDidSaveTextDocument((d) => d.uri.path.endsWith('.r.md') && ensureRightEditor()),
 
+		// "Open in VS Code editor" from the Resolve mode (VS Code's Accept Current / Incoming / Both)
+		vscode.commands.registerCommand('korn.openTextEditor', (uri: vscode.Uri) => switchView(uri, 'default')),
+
 		// Back to the Korn editor from any other editor (editor title bar)
 		vscode.commands.registerCommand('korn.openKorn', (uri?: vscode.Uri) => switchView(uri, RmdEditorProvider.viewType))
 	);
@@ -107,7 +110,11 @@ const CONFLICT_CHOICES: ConflictChoice[] = [
 		detail: 'ไฟล์นี้ใช้เวอร์ชันบน remote ส่วนงานของเราเก็บเป็นไฟล์ใหม่ แล้ว commit & push',
 		action: 'saveCopy',
 	},
-	{ label: '$(git-merge) 3. Resolve conflict', detail: 'แก้เองใน Source Control', action: 'resolve' },
+	{
+		label: '$(git-merge) 3. Resolve in Korn',
+		detail: 'เลือกทีละจุด: ของเรา / ของอีกคน / ทั้งคู่ / แก้เอง แล้วกด Finish & Sync',
+		action: 'resolve',
+	},
 ];
 
 // Compact vertical list (Quick Pick) instead of a wide modal dialog
@@ -171,12 +178,9 @@ async function handleConflict(uri: vscode.Uri, action: ConflictAction) {
 		);
 
 		if (action === 'resolve') {
-			// VS Code's Text Editor shows the conflict with Accept Current / Incoming / Both
-			await switchView(uri, 'default');
-			await vscode.commands.executeCommand('workbench.view.scm');
-			vscode.window.showInformationMessage(
-				`แก้ conflict ใน ${name}: เลือก Accept Current / Incoming / Both แล้วกด Cmd+S จะกลับไปหน้า Korn ให้ จากนั้นกด Sync (ไม่ต้อง commit เอง)`
-			);
+			// The Korn editor switches to its Resolve mode by itself when it sees the conflict markers
+			await switchView(uri, RmdEditorProvider.viewType);
+			vscode.window.showInformationMessage(`แก้ conflict ใน ${name} ในแท็บ ⚠ Resolve แล้วกด Finish & Sync`);
 			return;
 		}
 
@@ -199,8 +203,9 @@ function showGitError(title: string, error: unknown) {
 
 let switching = false;
 
-// The active .r.md tab should be in the Korn editor, except while it still has conflict markers:
-// then VS Code's Text Editor is used (Accept Current / Incoming / Both). Diff and merge editors are left alone.
+// The active .r.md tab should be in the Korn editor (its Resolve mode handles conflicts).
+// Exception: while the file still has conflict markers, VS Code's Text Editor may stay open if the user
+// chose "Open in VS Code editor". Diff and merge editors are left alone.
 async function ensureRightEditor() {
 	if (switching) {
 		return;
@@ -213,10 +218,13 @@ async function ensureRightEditor() {
 
 	switching = true;
 	try {
-		const desired = (await getMergeState(input.uri)) === 'unresolved' ? 'default' : RmdEditorProvider.viewType;
-		if (current !== desired) {
-			await switchView(input.uri, desired);
+		if (current === RmdEditorProvider.viewType) {
+			return;
 		}
+		if (current === 'default' && (await getMergeState(input.uri)) === 'unresolved') {
+			return;
+		}
+		await switchView(input.uri, RmdEditorProvider.viewType);
 	} finally {
 		switching = false;
 	}

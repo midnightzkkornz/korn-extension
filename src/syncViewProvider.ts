@@ -127,7 +127,7 @@ export class SyncViewProvider implements vscode.WebviewViewProvider {
 		const ACTIONS = [
 			['keepMine', '1. Replace with my version', ''],
 			['saveCopy', '2. Save my work as copy…', 'secondary'],
-			['resolve', '3. Resolve conflict', 'secondary'],
+			['resolve', '3. Resolve in Korn', 'secondary'],
 		];
 
 		function render(items) {

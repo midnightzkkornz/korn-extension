@@ -12,25 +12,37 @@ import { gfm } from '@milkdown/kit/preset/gfm';
 import { replaceAll } from '@milkdown/kit/utils';
 import '@milkdown/kit/prose/view/style/prosemirror.css';
 import './style.css';
+import type { Choice } from './conflictParser';
+import { ResolveView } from './resolve';
 
-type Mode = 'view' | 'text' | 'preview' | 'editor';
-const MODES: Mode[] = ['view', 'text', 'preview', 'editor'];
+type Mode = 'view' | 'text' | 'preview' | 'editor' | 'resolve';
+const MODES: Mode[] = ['view', 'text', 'preview', 'editor', 'resolve'];
 
 // Messages from the extension
 // ackSeq = the last of our edits that is already in the VS Code document
 type HostMessage =
 	| { type: 'init' | 'update'; text: string; html: string; ackSeq: number }
-	| { type: 'syncState'; state: SyncState; time?: string };
+	| { type: 'syncState'; state: SyncState; time?: string }
+	| { type: 'renderedMany'; requestId: number; texts: string[]; htmls: string[] };
 
 type SyncState = 'syncing' | 'done' | 'error' | 'idle' | 'conflict' | 'merging';
 
+// Per-tab state that survives reloads
+interface WebviewState {
+	mode?: Mode;
+	resolve?: { key: string; choices: (Choice | undefined)[] };
+}
+
 declare function acquireVsCodeApi(): {
 	postMessage(message: unknown): void;
-	getState(): { mode?: Mode } | undefined;
-	setState(state: { mode: Mode }): void;
+	getState(): WebviewState | undefined;
+	setState(state: WebviewState): void;
 };
 
 const vscode = acquireVsCodeApi();
+function saveState(patch: WebviewState) {
+	vscode.setState({ ...vscode.getState(), ...patch });
+}
 const rendered = document.getElementById('rendered')!;
 const textPane = document.getElementById('text')!;
 const wysiwygPane = document.getElementById('wysiwyg')!;
@@ -58,6 +70,7 @@ function onLocalEdit(text: string) {
 	localSeq++;
 	clearTimeout(editTimer);
 	editTimer = setTimeout(flushEdit, 150);
+	refreshResolve();
 }
 
 // ---- Text + Preview modes: CodeMirror ----
@@ -145,10 +158,32 @@ async function showMilkdown(text: string) {
 	}
 }
 
+// ---- Resolve mode: our own conflict resolver (webview/resolve.ts) ----
+const resolveTab = document.querySelector<HTMLButtonElement>('.nav button[data-mode="resolve"]')!;
+const resolveView = new ResolveView(document.getElementById('resolve')!, {
+	postMessage: (message) => vscode.postMessage(message),
+	loadChoices: (key) => (vscode.getState()?.resolve?.key === key ? vscode.getState()?.resolve?.choices : undefined),
+	saveChoices: (key, choices) => saveState({ resolve: { key, choices } }),
+});
+let hadConflicts = false;
+
+// Show the Resolve tab only while the file has conflicts, and jump to it when they appear
+function refreshResolve() {
+	const status = resolveView.update(currentText);
+	const hasConflicts = status !== 'none';
+	resolveTab.hidden = !hasConflicts;
+	if (hasConflicts && !hadConflicts && mode !== 'resolve') {
+		setMode('resolve');
+	} else if (!hasConflicts && mode === 'resolve') {
+		setMode('view');
+	}
+	hadConflicts = hasConflicts;
+}
+
 // ---- Mode switching ----
 function setMode(next: Mode) {
 	mode = next;
-	vscode.setState({ mode });
+	saveState({ mode });
 	document.body.dataset.mode = mode;
 	for (const button of document.querySelectorAll<HTMLButtonElement>('.nav button')) {
 		button.classList.toggle('active', button.dataset.mode === mode);
@@ -192,7 +227,7 @@ function setSyncState(state: SyncState, time?: string) {
 			: state === 'error'
 				? 'Sync failed'
 				: state === 'conflict'
-					? 'Conflict — แก้แล้วกด Sync (ดูแผง Korn Sync)'
+					? 'Conflict — เลือกในแท็บ Resolve แล้วกด Finish & Sync'
 					: state === 'merging'
 						? 'Merge ready — กด Sync เพื่อ push'
 						: lastSyncLabel;
@@ -203,6 +238,10 @@ window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
 	const message = event.data;
 	if (message.type === 'syncState') {
 		setSyncState(message.state, message.time);
+		return;
+	}
+	if (message.type === 'renderedMany') {
+		resolveView.onRendered(message.requestId, message.texts, message.htmls);
 		return;
 	}
 	rendered.innerHTML = message.html;
@@ -216,8 +255,11 @@ window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
 		}
 	}
 	if (message.type === 'init') {
+		// a reload in Resolve mode keeps it; otherwise refreshResolve() decides
+		hadConflicts = mode === 'resolve';
 		setMode(mode);
 	}
+	refreshResolve();
 });
 
 vscode.postMessage({ type: 'ready' });

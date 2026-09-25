@@ -4,7 +4,14 @@ import { getLastSyncTime, getMergeState, SyncOutcome } from './gitSync';
 import { getNonce, SYNC_ICON } from './util';
 
 // Messages from the webview (see webview/main.ts)
-type EditorMessage = { type: 'ready' } | { type: 'sync' } | { type: 'edit'; text: string; seq: number };
+type EditorMessage =
+	| { type: 'ready' }
+	| { type: 'sync' }
+	| { type: 'edit'; text: string; seq: number }
+	// Resolve mode (webview/resolve.ts)
+	| { type: 'renderMany'; requestId: number; texts: string[] }
+	| { type: 'finishResolve'; text: string }
+	| { type: 'openTextEditor' };
 
 // Korn editor for *.r.md: one tab with an always-visible toolbar and 4 modes
 // (Korn / Text / Preview / Editor). The UI lives in webview/ and is bundled into out/webview.js.
@@ -110,24 +117,48 @@ export class RmdEditorProvider implements vscode.CustomTextEditorProvider {
 				case 'edit':
 					applyWebviewEdit(message.text, message.seq);
 					break;
-				case 'sync': {
-					panel.webview.postMessage({ type: 'syncState', state: 'syncing' });
-					await editQueue; // make sure everything typed so far is in the document
-					try {
-						const result = await vscode.commands.executeCommand<SyncOutcome | undefined>('korn.sync', document.uri);
-						if (result?.kind === 'synced') {
-							const time = (await getLastSyncTime(document.uri)) ?? result.time;
-							panel.webview.postMessage({ type: 'syncState', state: 'done', time: time.toISOString() });
-						} else {
-							postSyncState();
-						}
-					} catch {
-						panel.webview.postMessage({ type: 'syncState', state: 'error' });
-					}
+				case 'sync':
+					await runSync();
+					break;
+				case 'renderMany': {
+					const htmls = await Promise.all(message.texts.map(renderMarkdown));
+					panel.webview.postMessage({ type: 'renderedMany', requestId: message.requestId, texts: message.texts, htmls });
 					break;
 				}
+				case 'finishResolve':
+					// Write the resolved text, save, then Sync concludes the merge and pushes
+					await editQueue;
+					if (document.getText() !== message.text) {
+						const edit = new vscode.WorkspaceEdit();
+						edit.replace(document.uri, new vscode.Range(0, 0, document.lineCount, 0), message.text);
+						await vscode.workspace.applyEdit(edit);
+					}
+					await document.save();
+					await runSync();
+					break;
+				case 'openTextEditor':
+					vscode.commands.executeCommand('korn.openTextEditor', document.uri);
+					break;
 			}
 		});
+
+		// Sync button and "Finish & Sync" in Resolve mode
+		const runSync = async () => {
+			panel.webview.postMessage({ type: 'syncState', state: 'syncing' });
+			await editQueue; // make sure everything typed so far is in the document
+			try {
+				const result = await vscode.commands.executeCommand<SyncOutcome | undefined>('korn.sync', document.uri);
+				if (result?.kind === 'synced') {
+					const time = (await getLastSyncTime(document.uri)) ?? result.time;
+					panel.webview.postMessage({ type: 'syncState', state: 'done', time: time.toISOString() });
+				} else {
+					postSyncState();
+				}
+			} catch {
+				panel.webview.postMessage({ type: 'syncState', state: 'error' });
+			}
+		};
+
 	}
 
 	private getHtml(webview: vscode.Webview, document: vscode.TextDocument): string {
@@ -159,6 +190,7 @@ export class RmdEditorProvider implements vscode.CustomTextEditorProvider {
 			<button data-mode="text" title="Edit markdown source">Text</button>
 			<button data-mode="preview" title="Source + live preview">Preview</button>
 			<button data-mode="editor" title="WYSIWYG editor">Editor</button>
+			<button data-mode="resolve" class="resolve-tab" title="Resolve merge conflicts" hidden>⚠ Resolve</button>
 		</div>
 		<span class="file">${fileName}</span>
 		<span class="status" id="status"><span class="dot"></span><span id="status-text">Last sync: never</span></span>
@@ -171,6 +203,7 @@ export class RmdEditorProvider implements vscode.CustomTextEditorProvider {
 	<div id="panes">
 		<div id="text"></div>
 		<div id="wysiwyg"></div>
+		<div id="resolve"></div>
 		<main id="rendered"></main>
 	</div>
 	<script nonce="${nonce}" src="${scriptUri}"></script>
