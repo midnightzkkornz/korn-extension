@@ -84,6 +84,13 @@
           "group": "navigation"
         }
       ]
+    },
+    "configurationDefaults": {
+      "workbench.editor.hiddenEditorTypes": [
+        "default",
+        "vscode.markdown.preview.editor",
+        "vscode.markdown.editor"
+      ]
     }
   },
   "scripts": {
