@@ -20,7 +20,9 @@ const MODES: Mode[] = ['view', 'text', 'preview', 'editor'];
 // ackSeq = the last of our edits that is already in the VS Code document
 type HostMessage =
 	| { type: 'init' | 'update'; text: string; html: string; ackSeq: number }
-	| { type: 'syncState'; state: 'syncing' | 'done' | 'error' | 'idle'; time?: string };
+	| { type: 'syncState'; state: SyncState; time?: string };
+
+type SyncState = 'syncing' | 'done' | 'error' | 'idle' | 'conflict' | 'merging';
 
 declare function acquireVsCodeApi(): {
 	postMessage(message: unknown): void;
@@ -175,7 +177,7 @@ const statusEl = document.getElementById('status')!;
 const statusText = document.getElementById('status-text')!;
 let lastSyncLabel = 'Last sync: never';
 
-function setSyncState(state: 'syncing' | 'done' | 'error' | 'idle', time?: string) {
+function setSyncState(state: SyncState, time?: string) {
 	statusEl.dataset.state = state;
 	syncButton.disabled = state === 'syncing';
 	if (state === 'done' && time) {
@@ -185,7 +187,15 @@ function setSyncState(state: 'syncing' | 'done' | 'error' | 'idle', time?: strin
 		lastSyncLabel = `Last sync: ${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 	}
 	statusText.textContent =
-		state === 'syncing' ? 'Syncing…' : state === 'error' ? 'Sync failed' : lastSyncLabel;
+		state === 'syncing'
+			? 'Syncing…'
+			: state === 'error'
+				? 'Sync failed'
+				: state === 'conflict'
+					? 'Conflict — แก้แล้วกด Sync (ดูแผง Korn Sync)'
+					: state === 'merging'
+						? 'Merge ready — กด Sync เพื่อ push'
+						: lastSyncLabel;
 }
 
 // ---- Messages from the extension ----

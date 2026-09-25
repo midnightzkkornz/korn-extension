@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
-import { getLastSyncTime, SyncResult } from './gitSync';
+import type { ConflictStore } from './conflicts';
+import { getLastSyncTime, getMergeState, SyncOutcome } from './gitSync';
 import { getNonce, SYNC_ICON } from './util';
 
 // Messages from the webview (see webview/main.ts)
@@ -10,7 +11,10 @@ type EditorMessage = { type: 'ready' } | { type: 'sync' } | { type: 'edit'; text
 export class RmdEditorProvider implements vscode.CustomTextEditorProvider {
 	public static readonly viewType = 'korn.rmdEditor';
 
-	constructor(private readonly extensionUri: vscode.Uri) {}
+	constructor(
+		private readonly extensionUri: vscode.Uri,
+		private readonly conflicts: ConflictStore
+	) {}
 
 	async resolveCustomTextEditor(document: vscode.TextDocument, panel: vscode.WebviewPanel): Promise<void> {
 		const docFolder = vscode.Uri.joinPath(document.uri, '..');
@@ -56,12 +60,33 @@ export class RmdEditorProvider implements vscode.CustomTextEditorProvider {
 			);
 		};
 
-		const postLastSync = async () => {
-			const time = await getLastSyncTime(document.uri);
-			if (time) {
-				panel.webview.postMessage({ type: 'syncState', state: 'done', time: time.toISOString() });
+		// Toolbar status: conflict (from the side panel's list) or the last sync time from git
+		const postSyncState = async () => {
+			// Read from git first, so it's still right after a reload
+			const merge = await getMergeState(document.uri);
+			if (merge === 'unresolved') {
+				panel.webview.postMessage({ type: 'syncState', state: 'conflict' });
+				return;
 			}
+			if (merge === 'resolved') {
+				panel.webview.postMessage({ type: 'syncState', state: 'merging' });
+				return;
+			}
+			if (this.conflicts.has(document.uri)) {
+				panel.webview.postMessage({ type: 'syncState', state: 'conflict' });
+				return;
+			}
+			const time = await getLastSyncTime(document.uri);
+			panel.webview.postMessage(
+				time ? { type: 'syncState', state: 'done', time: time.toISOString() } : { type: 'syncState', state: 'idle' }
+			);
 		};
+		const conflictSub = this.conflicts.onDidChange(postSyncState);
+		const saveSub = vscode.workspace.onDidSaveTextDocument((d) => {
+			if (d.uri.toString() === document.uri.toString()) {
+				postSyncState();
+			}
+		});
 
 		const changeSub = vscode.workspace.onDidChangeTextDocument((e) => {
 			if (e.document.uri.toString() === document.uri.toString() && e.contentChanges.length > 0) {
@@ -71,6 +96,8 @@ export class RmdEditorProvider implements vscode.CustomTextEditorProvider {
 		panel.onDidDispose(() => {
 			clearTimeout(renderTimer);
 			changeSub.dispose();
+			conflictSub.dispose();
+			saveSub.dispose();
 		});
 
 		panel.webview.onDidReceiveMessage(async (message: EditorMessage) => {
@@ -78,7 +105,7 @@ export class RmdEditorProvider implements vscode.CustomTextEditorProvider {
 				case 'ready':
 					ackSeq = 0; // webview (re)loaded, its edit counter starts over
 					sendUpdate('init');
-					postLastSync();
+					postSyncState();
 					break;
 				case 'edit':
 					applyWebviewEdit(message.text, message.seq);
@@ -87,12 +114,12 @@ export class RmdEditorProvider implements vscode.CustomTextEditorProvider {
 					panel.webview.postMessage({ type: 'syncState', state: 'syncing' });
 					await editQueue; // make sure everything typed so far is in the document
 					try {
-						const result = await vscode.commands.executeCommand<SyncResult | undefined>('korn.sync', document.uri);
-						if (result) {
+						const result = await vscode.commands.executeCommand<SyncOutcome | undefined>('korn.sync', document.uri);
+						if (result?.kind === 'synced') {
 							const time = (await getLastSyncTime(document.uri)) ?? result.time;
 							panel.webview.postMessage({ type: 'syncState', state: 'done', time: time.toISOString() });
 						} else {
-							panel.webview.postMessage({ type: 'syncState', state: 'idle' });
+							postSyncState();
 						}
 					} catch {
 						panel.webview.postMessage({ type: 'syncState', state: 'error' });

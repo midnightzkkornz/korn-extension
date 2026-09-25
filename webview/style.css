@@ -45,6 +45,10 @@ body {
 }
 .toolbar .status[data-state='done'] .dot { background: var(--vscode-charts-green); }
 .toolbar .status[data-state='error'] .dot { background: var(--vscode-charts-red); }
+.toolbar .status[data-state='conflict'] { color: var(--vscode-editorWarning-foreground); }
+.toolbar .status[data-state='conflict'] .dot { background: var(--vscode-charts-orange); }
+.toolbar .status[data-state='merging'] { color: var(--vscode-charts-blue); }
+.toolbar .status[data-state='merging'] .dot,
 .toolbar .status[data-state='syncing'] .dot { background: var(--vscode-charts-blue); }
 .toolbar .spacer { flex: 1; }
 .toolbar button {

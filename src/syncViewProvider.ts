@@ -1,13 +1,18 @@
 import * as vscode from 'vscode';
+import type { ConflictStore } from './conflicts';
+import type { ConflictAction } from './gitSync';
 import { getNonce, SYNC_ICON } from './util';
 
-type PanelMessage = { type: 'sync' | 'replace' | 'keep' };
+type PanelMessage = { type: 'sync' } | { type: 'resolve'; uri: string; action: ConflictAction };
 
 // Side panel shown when clicking the Korn icon in the Activity Bar
 export class SyncViewProvider implements vscode.WebviewViewProvider {
 	public static readonly viewId = 'korn.syncView';
 
-	constructor(private readonly extensionUri: vscode.Uri) {}
+	constructor(
+		private readonly extensionUri: vscode.Uri,
+		private readonly conflicts: ConflictStore
+	) {}
 
 	resolveWebviewView(webviewView: vscode.WebviewView) {
 		webviewView.webview.options = {
@@ -16,16 +21,21 @@ export class SyncViewProvider implements vscode.WebviewViewProvider {
 		};
 		webviewView.webview.html = this.getHtml();
 
-		webviewView.webview.onDidReceiveMessage((message: PanelMessage) => {
+		// The conflict box only shows up when a Sync hit a real conflict
+		const postConflicts = () => webviewView.webview.postMessage({ type: 'conflicts', items: this.conflicts.list() });
+		const sub = this.conflicts.onDidChange(postConflicts);
+		webviewView.onDidDispose(() => sub.dispose());
+
+		webviewView.webview.onDidReceiveMessage((message: PanelMessage | { type: 'ready' }) => {
 			switch (message.type) {
+				case 'ready':
+					postConflicts();
+					break;
 				case 'sync':
 					vscode.commands.executeCommand('korn.sync');
 					break;
-				case 'replace':
-					vscode.window.showInformationMessage('Replace with version: ยังไม่ได้ทำ logic');
-					break;
-				case 'keep':
-					vscode.window.showInformationMessage('Keep mine: ยังไม่ได้ทำ logic');
+				case 'resolve':
+					vscode.commands.executeCommand('korn.resolveConflict', message.uri, message.action);
 					break;
 			}
 		});
@@ -79,8 +89,9 @@ export class SyncViewProvider implements vscode.WebviewViewProvider {
 			color: var(--vscode-descriptionForeground);
 		}
 		.conflict {
+			margin-bottom: 12px;
 			padding: 10px;
-			border: 1px solid var(--vscode-panel-border);
+			border: 1px solid var(--vscode-editorWarning-foreground);
 			border-radius: 4px;
 			background: var(--vscode-editorWidget-background);
 		}
@@ -90,29 +101,68 @@ export class SyncViewProvider implements vscode.WebviewViewProvider {
 			color: var(--vscode-editorWarning-foreground);
 		}
 		.conflict .file {
-			margin-bottom: 10px;
 			font-family: var(--vscode-editor-font-family);
+			word-break: break-all;
+		}
+		.conflict .hint {
+			margin: 4px 0 10px;
 			color: var(--vscode-descriptionForeground);
 		}
+		.conflict button { text-align: left; }
 		.conflict button + button { margin-top: 6px; }
 	</style>
 </head>
 <body>
 	<button id="sync">${SYNC_ICON} Sync</button>
-	<div class="status">Last sync: never</div>
+	<div class="status">Syncs the .r.md file that is open</div>
 
-	<div class="conflict">
-		<h3>⚠ Conflict?</h3>
-		<div class="file">notes.r.md (ข้อมูลตัวอย่าง)</div>
-		<button id="replace">1. Replace with version</button>
-		<button id="keep" class="secondary">2. Keep mine</button>
-	</div>
+	<div id="conflicts"></div>
 
 	<script nonce="${nonce}">
 		const vscode = acquireVsCodeApi();
-		for (const id of ['sync', 'replace', 'keep']) {
-			document.getElementById(id).addEventListener('click', () => vscode.postMessage({ type: id }));
+		const list = document.getElementById('conflicts');
+
+		document.getElementById('sync').addEventListener('click', () => vscode.postMessage({ type: 'sync' }));
+
+		const ACTIONS = [
+			['keepMine', '1. Replace with my version', ''],
+			['saveCopy', '2. Save my work as copy…', 'secondary'],
+			['resolve', '3. Resolve conflict', 'secondary'],
+		];
+
+		function render(items) {
+			list.replaceChildren();
+			for (const item of items) {
+				const card = document.createElement('div');
+				card.className = 'conflict';
+
+				const title = document.createElement('h3');
+				title.textContent = '⚠ Conflict';
+				const file = document.createElement('div');
+				file.className = 'file';
+				file.textContent = item.name;
+				const hint = document.createElement('div');
+				hint.className = 'hint';
+				hint.textContent = 'ไฟล์นี้ถูกแก้บน remote ด้วย เลือกวิธีจัดการ:';
+				card.append(title, file, hint);
+
+				for (const [action, label, cls] of ACTIONS) {
+					const button = document.createElement('button');
+					button.textContent = label;
+					button.className = cls;
+					button.addEventListener('click', () => vscode.postMessage({ type: 'resolve', uri: item.uri, action }));
+					card.append(button);
+				}
+				list.append(card);
+			}
 		}
+
+		window.addEventListener('message', (event) => {
+			if (event.data.type === 'conflicts') {
+				render(event.data.items);
+			}
+		});
+		vscode.postMessage({ type: 'ready' });
 	</script>
 </body>
 </html>`;
