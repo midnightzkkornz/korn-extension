@@ -67,12 +67,41 @@ export function activate(context: vscode.ExtensionContext) {
 			await vscode.commands.executeCommand('vscode.open', fileUri);
 		}),
 
+		// .r.md files always show in the Korn editor, even if another editor was picked
+		vscode.window.tabGroups.onDidChangeTabs(() => ensureKornEditor()),
+
 		// Back to the Korn editor from any other editor (editor title bar)
 		vscode.commands.registerCommand('korn.openKorn', (uri?: vscode.Uri) => switchView(uri, RmdEditorProvider.viewType))
 	);
+
+	ensureKornEditor();
 }
 
 export function deactivate() {}
+
+let switching = false;
+
+// If the active tab is a .r.md opened in another editor (Text Editor, Markdown Preview, ...),
+// reopen it in the Korn editor. Diff views are left alone.
+async function ensureKornEditor() {
+	if (switching) {
+		return;
+	}
+	const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input;
+	const isOtherEditor =
+		input instanceof vscode.TabInputText ||
+		(input instanceof vscode.TabInputCustom && input.viewType !== RmdEditorProvider.viewType);
+	if (!isOtherEditor || !input.uri.path.endsWith('.r.md')) {
+		return;
+	}
+
+	switching = true;
+	try {
+		await switchView(input.uri, RmdEditorProvider.viewType);
+	} finally {
+		switching = false;
+	}
+}
 
 function activeUri(uri?: vscode.Uri): vscode.Uri | undefined {
 	if (uri) {

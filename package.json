@@ -10,6 +10,9 @@
   "categories": [
     "Other"
   ],
+  "activationEvents": [
+    "onLanguage:markdown"
+  ],
   "main": "./out/extension.js",
   "contributes": {
     "viewsContainers": {
