@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { getLastSyncTime, SyncResult } from './gitSync';
-import { getNonce } from './util';
+import { getNonce, SYNC_ICON } from './util';
 
 // Messages from the webview (see webview/main.ts)
 type EditorMessage = { type: 'ready' } | { type: 'sync' } | { type: 'edit'; text: string; seq: number };
@@ -136,7 +136,10 @@ export class RmdEditorProvider implements vscode.CustomTextEditorProvider {
 		<span class="file">${fileName}</span>
 		<span class="status" id="status"><span class="dot"></span><span id="status-text">Last sync: never</span></span>
 		<span class="spacer"></span>
-		<button id="sync">⟳ Sync</button>
+		<button id="sync">
+			${SYNC_ICON}
+			Sync
+		</button>
 	</div>
 	<div id="panes">
 		<div id="text"></div>

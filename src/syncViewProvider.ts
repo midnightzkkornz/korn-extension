@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { getNonce } from './util';
+import { getNonce, SYNC_ICON } from './util';
 
 type PanelMessage = { type: 'sync' | 'replace' | 'keep' };
 
@@ -58,6 +58,17 @@ export class SyncViewProvider implements vscode.WebviewViewProvider {
 			background: var(--vscode-button-background);
 		}
 		button:hover { background: var(--vscode-button-hoverBackground); }
+		#sync {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			gap: 6px;
+		}
+		#sync .icon {
+			width: 16px;
+			height: 16px;
+			flex: none;
+		}
 		button.secondary {
 			color: var(--vscode-button-secondaryForeground);
 			background: var(--vscode-button-secondaryBackground);
@@ -87,7 +98,7 @@ export class SyncViewProvider implements vscode.WebviewViewProvider {
 	</style>
 </head>
 <body>
-	<button id="sync">⟳ Sync</button>
+	<button id="sync">${SYNC_ICON} Sync</button>
 	<div class="status">Last sync: never</div>
 
 	<div class="conflict">
