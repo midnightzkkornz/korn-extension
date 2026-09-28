@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import type { ConflictStore } from './conflicts';
 import { listRmdFiles } from './fileStatus';
 import type { ConflictAction } from './gitSync';
+import { showLog } from './log';
 import { getNonce, SYNC_ICON } from './util';
 
 type PanelMessage =
@@ -10,6 +11,7 @@ type PanelMessage =
 	| { type: 'syncFile'; uri: string }
 	| { type: 'open'; uri: string }
 	| { type: 'openSettings' }
+	| { type: 'showLog' }
 	| { type: 'resolve'; uri: string; action: ConflictAction };
 
 const REFRESH_DELAY_MS = 500;
@@ -21,6 +23,8 @@ export class SyncViewProvider implements vscode.WebviewViewProvider {
 
 	private view: vscode.WebviewView | undefined;
 	private refreshTimer: ReturnType<typeof setTimeout> | undefined;
+	/** Called when the panel opens or becomes visible (used to check the remote for updates) */
+	onShow: () => void = () => {};
 
 	constructor(
 		private readonly extensionUri: vscode.Uri,
@@ -56,7 +60,12 @@ export class SyncViewProvider implements vscode.WebviewViewProvider {
 			postConflicts();
 			this.refresh(); // busy / conflict state shows in the file list too
 		});
-		const visibleSub = webviewView.onDidChangeVisibility(() => webviewView.visible && this.refresh());
+		const visibleSub = webviewView.onDidChangeVisibility(() => {
+			if (webviewView.visible) {
+				this.refresh();
+				this.onShow();
+			}
+		});
 		webviewView.onDidDispose(() => {
 			sub.dispose();
 			visibleSub.dispose();
@@ -68,6 +77,7 @@ export class SyncViewProvider implements vscode.WebviewViewProvider {
 				case 'ready':
 					postConflicts();
 					this.postFiles();
+					this.onShow();
 					break;
 				case 'syncAll':
 					vscode.commands.executeCommand('korn.syncAll');
@@ -77,6 +87,9 @@ export class SyncViewProvider implements vscode.WebviewViewProvider {
 					break;
 				case 'open':
 					vscode.commands.executeCommand('vscode.open', vscode.Uri.parse(message.uri));
+					break;
+				case 'showLog':
+					showLog();
 					break;
 				case 'openSettings':
 					vscode.commands.executeCommand('workbench.action.openSettings', 'korn.autoSync');
@@ -128,9 +141,16 @@ export class SyncViewProvider implements vscode.WebviewViewProvider {
 			background: var(--vscode-button-secondaryBackground);
 		}
 		button.secondary:hover { background: var(--vscode-button-secondaryHoverBackground); }
+		.auto-line {
+			display: flex;
+			flex-wrap: wrap;
+			justify-content: space-between;
+			gap: 2px 10px;
+			margin: 6px 0 14px;
+		}
 		.auto {
 			display: block;
-			margin: 6px 0 14px;
+			margin: 0;
 			padding: 0;
 			width: auto;
 			text-align: left;
@@ -215,6 +235,8 @@ export class SyncViewProvider implements vscode.WebviewViewProvider {
 		.dot.s-dirty { background: var(--vscode-charts-yellow); }
 		.dot.s-ahead { background: var(--vscode-charts-blue); }
 		.dot.s-blocked { background: transparent; box-shadow: inset 0 0 0 2px var(--vscode-charts-blue); }
+		.dot.s-incoming { background: var(--vscode-charts-purple); }
+		.incoming-note { color: var(--vscode-charts-purple); }
 		.dot.s-synced { background: var(--vscode-charts-green); }
 		.dot.s-never, .dot.s-nogit { background: var(--vscode-disabledForeground, #888); }
 		.empty { color: var(--vscode-descriptionForeground); }
@@ -222,7 +244,10 @@ export class SyncViewProvider implements vscode.WebviewViewProvider {
 </head>
 <body>
 	<button id="syncAll" disabled>${SYNC_ICON}<span id="syncAllLabel">Sync all</span></button>
-	<button id="auto" class="auto" title="เปิด Settings ของ auto-sync">Auto-sync: …</button>
+	<div class="auto-line">
+		<button id="auto" class="auto" title="เปิด Settings ของ auto-sync">Auto-sync: …</button>
+		<button id="showLog" class="auto" title="Output → Korn: สิ่งที่ auto-sync ทำ และเหตุผลที่ข้าม">log</button>
+	</div>
 
 	<div id="conflicts"></div>
 
@@ -240,6 +265,7 @@ export class SyncViewProvider implements vscode.WebviewViewProvider {
 
 		syncAll.addEventListener('click', () => vscode.postMessage({ type: 'syncAll' }));
 		auto.addEventListener('click', () => vscode.postMessage({ type: 'openSettings' }));
+		document.getElementById('showLog').addEventListener('click', () => vscode.postMessage({ type: 'showLog' }));
 
 		const ACTIONS = [
 			['keepMine', '1. Replace with my version', ''],
@@ -299,6 +325,7 @@ export class SyncViewProvider implements vscode.WebviewViewProvider {
 				case 'dirty': return 'แก้แล้ว ยังไม่ sync';
 				case 'ahead': return 'commit แล้ว รอ push';
 				case 'blocked': return 'รอ push — ติด conflict ของ ' + file.blockedBy;
+				case 'incoming': return file.unsaved ? 'มีของใหม่ — เซฟแล้วจะรวมให้' : 'มีเวอร์ชันใหม่บน remote';
 				case 'synced': return file.lastSync ? formatTime(file.lastSync) : 'sync แล้ว';
 				case 'nogit': return 'ไม่ได้อยู่ใน git repo';
 				default: return 'ยังไม่เคย sync';
@@ -328,9 +355,11 @@ export class SyncViewProvider implements vscode.WebviewViewProvider {
 				sync.title =
 					file.state === 'blocked'
 						? 'จะ push ให้เองหลังแก้ conflict ของ ' + file.blockedBy
-						: file.state === 'ahead'
-							? 'กดเพื่อ push อีกครั้ง'
-							: 'Sync ' + file.name;
+						: file.state === 'incoming'
+							? 'ดึงเวอร์ชันใหม่มาจาก remote'
+							: file.state === 'ahead'
+								? 'กดเพื่อ push อีกครั้ง'
+								: 'Sync ' + file.name;
 				sync.innerHTML = SYNC_ICON; // static icon markup
 				// blocked: pushing can't work until the conflict is handled
 				sync.disabled = file.busy || file.state === 'nogit' || file.state === 'blocked';
@@ -342,15 +371,24 @@ export class SyncViewProvider implements vscode.WebviewViewProvider {
 				const dot = document.createElement('span');
 				dot.className = 'dot s-' + file.state;
 				state.append(dot, document.createTextNode(stateLabel(file)));
+				// our own changes and a newer remote version at the same time: say both
+				if (file.incoming && file.state !== 'incoming' && file.state !== 'conflict' && !file.busy) {
+					const note = document.createElement('span');
+					note.className = 'incoming-note';
+					note.textContent = '· มีของใหม่บน remote';
+					state.append(note);
+				}
 
 				row.append(name, sync, state);
 				fileList.append(row);
 			}
 
-			const pending = files.filter((f) => (f.state === 'dirty' || f.state === 'ahead') && !f.busy).length;
+			const pending = files.filter(
+				(f) => (f.state === 'dirty' || f.state === 'ahead' || f.state === 'incoming') && !f.busy
+			).length;
 			syncAllLabel.textContent = pending ? 'Sync all (' + pending + ')' : 'Sync all';
 			syncAll.disabled = pending === 0;
-			syncAll.title = pending ? 'Sync ไฟล์ที่ยังไม่ sync ทั้งหมด' : 'ทุกไฟล์ sync แล้ว';
+			syncAll.title = pending ? 'ส่งของเราและดึงของใหม่จาก remote ทั้งหมด' : 'ทุกไฟล์ sync แล้ว';
 		}
 
 		window.addEventListener('message', (event) => {

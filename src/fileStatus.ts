@@ -6,19 +6,32 @@ import * as ops from './gitOps';
 
 // blocked = committed, but can't be pushed until a conflict in the same repo is handled
 // (git pushes the whole branch, and the branch can't take the remote changes yet)
-export type FileRowState = ops.FileSyncState | 'conflict' | 'blocked' | 'nogit';
+// incoming = unchanged here, but the remote has a newer version (as of the last fetch)
+export type FileRowState = ops.FileSyncState | 'conflict' | 'blocked' | 'incoming' | 'nogit';
 
 export interface FileRow {
 	uri: string;
 	name: string;
+	root?: string; // git repo root
 	state: FileRowState;
 	lastSync?: string;
 	blockedBy?: string; // the conflicted file holding this one back
+	incoming: boolean; // remote has a newer version (also set on dirty/ahead files)
+	unsaved: boolean; // open in an editor with changes not saved yet
 	busy: boolean;
 }
 
 // Sort order in the side panel: what needs attention first
-const ORDER: Record<FileRowState, number> = { conflict: 0, blocked: 1, dirty: 2, ahead: 3, synced: 4, never: 5, nogit: 6 };
+const ORDER: Record<FileRowState, number> = {
+	conflict: 0,
+	blocked: 1,
+	dirty: 2,
+	ahead: 3,
+	incoming: 4,
+	synced: 5,
+	never: 6,
+	nogit: 7,
+};
 
 function safeRealpath(file: string): string {
 	try {
@@ -58,13 +71,25 @@ export async function listRmdFiles(conflicts: ConflictStore): Promise<FileRow[]>
 	}
 
 	const rows: FileRow[] = [];
-	const row = (uri: vscode.Uri, state: FileRowState, lastSync?: string): FileRow => ({
-		uri: uri.toString(),
-		name: vscode.workspace.asRelativePath(uri),
-		state: conflicts.has(uri) ? 'conflict' : state,
-		lastSync,
-		busy: conflicts.isBusy(uri),
-	});
+	const row = (uri: vscode.Uri, state: FileRowState, root?: string, status?: ops.FileStatus): FileRow => {
+		const incoming = !!status?.incoming;
+		let shown = state;
+		if (conflicts.has(uri)) {
+			shown = 'conflict';
+		} else if (incoming && (state === 'synced' || state === 'never')) {
+			shown = 'incoming'; // nothing of ours to send, just something new to get
+		}
+		return {
+			uri: uri.toString(),
+			name: vscode.workspace.asRelativePath(uri),
+			root,
+			state: shown,
+			lastSync: status?.lastSync,
+			incoming,
+			unsaved: vscode.workspace.textDocuments.some((d) => d.isDirty && d.uri.toString() === uri.toString()),
+			busy: conflicts.isBusy(uri),
+		};
+	};
 
 	for (const [root, files] of byRepo) {
 		const states = await ops.repoFileStates(root).catch(() => new Map<string, ops.FileStatus>());
@@ -73,7 +98,7 @@ export async function listRmdFiles(conflicts: ConflictStore): Promise<FileRow[]>
 			// realpath: git prints the resolved root (e.g. /private/tmp for /tmp on macOS)
 			const rel = path.relative(root, safeRealpath(uri.fsPath)).split(path.sep).join('/');
 			const status = states.get(rel);
-			repoRows.push(row(uri, status?.state ?? 'never', status?.lastSync));
+			repoRows.push(row(uri, status?.state ?? 'never', root, status));
 		}
 
 		// A conflict (or an unfinished "Resolve in Korn" merge) holds back every unpushed commit of the repo

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { AutoSync, describeSettings } from './autoSync';
+import { AutoSync } from './autoSync';
 import { ConflictStore } from './conflicts';
 import { listRmdFiles } from './fileStatus';
 import { ConflictAction, getMergeState, resolveConflict, SyncOutcome, syncFile } from './gitSync';
@@ -12,8 +12,15 @@ let autoSync: AutoSync;
 
 // Called once when the extension is activated
 export function activate(context: vscode.ExtensionContext) {
-	panel = new SyncViewProvider(context.extensionUri, conflicts, () => describeSettings(autoSync.currentSettings));
-	autoSync = new AutoSync(conflicts, (uri) => syncOne(uri, { quiet: true }), () => panel.refresh());
+	panel = new SyncViewProvider(context.extensionUri, conflicts, () => autoSync.statusText());
+	autoSync = new AutoSync(
+		conflicts,
+		(uri) => syncOne(uri, { quiet: true }),
+		() => panel.refresh(),
+		(uri) => notifyConflict(uri)
+	);
+	// Look for new versions on the remote when the Korn panel is shown (at most once a minute)
+	panel.onShow = () => autoSync.checkRemote();
 
 	// Keep the file list in the side panel up to date
 	const watcher = vscode.workspace.createFileSystemWatcher('**/*.r.md');
@@ -23,7 +30,12 @@ export function activate(context: vscode.ExtensionContext) {
 		watcher.onDidDelete(() => panel.refresh()),
 		watcher.onDidChange(() => panel.refresh()),
 		vscode.workspace.onDidSaveTextDocument((doc) => doc.uri.path.endsWith('.r.md') && panel.refresh()),
-		vscode.window.onDidChangeWindowState((state) => state.focused && panel.refresh())
+		vscode.window.onDidChangeWindowState((state) => {
+			if (state.focused) {
+				panel.refresh();
+				autoSync.checkRemote(); // back in VS Code: anything new on the remote?
+			}
+		})
 	);
 
 	context.subscriptions.push(
@@ -144,9 +156,7 @@ async function syncOne(target: vscode.Uri, { quiet = false } = {}): Promise<Sync
 		if (result.kind === 'conflict') {
 			conflicts.add(target);
 			if (quiet) {
-				vscode.window
-					.showWarningMessage(`Conflict ใน ${name} — ไฟล์นี้ถูกแก้บน remote ด้วย`, 'เลือกวิธีจัดการ')
-					.then((choice) => choice && askConflictAction(target));
+				notifyConflict(target);
 			} else {
 				askConflictAction(target); // not awaited: the Sync button finishes with state "conflict"
 			}
@@ -171,8 +181,18 @@ async function syncOne(target: vscode.Uri, { quiet = false } = {}): Promise<Sync
 	}
 }
 
+// Background conflicts (auto-sync, Sync all): one notification instead of opening the choices
+function notifyConflict(uri: vscode.Uri) {
+	vscode.window
+		.showWarningMessage(`Conflict ใน ${vscode.workspace.asRelativePath(uri)} — ไฟล์นี้ถูกแก้บน remote ด้วย`, 'เลือกวิธีจัดการ')
+		.then((choice) => choice && askConflictAction(uri));
+}
+
 async function syncAll() {
-	const rows = (await listRmdFiles(conflicts)).filter((row) => row.state === 'dirty' || row.state === 'ahead');
+	// ours to send (dirty / ahead) and others' to get (incoming)
+	const rows = (await listRmdFiles(conflicts)).filter(
+		(row) => row.state === 'dirty' || row.state === 'ahead' || row.state === 'incoming'
+	);
 	if (rows.length === 0) {
 		vscode.window.showInformationMessage('ทุกไฟล์ sync แล้ว');
 		return;

@@ -217,6 +217,7 @@ export type FileSyncState = 'dirty' | 'ahead' | 'synced' | 'never';
 export interface FileStatus {
 	state: FileSyncState; // dirty = changed, not synced · ahead = committed, not pushed
 	lastSync?: string; // ISO time of the newest commit of this file on the remote
+	incoming?: boolean; // the remote has a newer version (known after a fetch)
 }
 
 /**
@@ -243,6 +244,11 @@ export async function repoFileStates(cwd: string): Promise<Map<string, FileStatu
 		for (const file of ahead.split('\n').filter(Boolean)) {
 			states.set(file, { ...states.get(file), state: 'ahead' });
 		}
+		// Changed on the remote, not pulled yet (as of the last fetch)
+		for (const file of await incomingFiles(cwd)) {
+			const current = states.get(file);
+			states.set(file, { ...current, state: current?.state ?? 'never', incoming: true });
+		}
 	}
 
 	// Changed or untracked in the working tree (-z: NUL separated, "XY path")
@@ -260,4 +266,39 @@ export async function repoFileStates(cwd: string): Promise<Map<string, FileStatu
 		}
 	}
 	return states;
+}
+
+// .r.md files the remote changed that we haven't pulled (as of the last fetch)
+export async function incomingFiles(cwd: string): Promise<string[]> {
+	const out = await runGit(['-c', 'core.quotepath=false', 'log', 'HEAD..@{upstream}', '--format=', '--name-only', '--', '*.r.md'], cwd);
+	return [...new Set(out.split('\n').filter(Boolean))];
+}
+
+export type PullResult = { pulled: boolean; conflictFile?: string; skipped?: string };
+
+/**
+ * Brings in the remote's new commits without pushing (auto-sync "get what others changed").
+ * Skips when a file we changed but haven't committed is also changed on the remote:
+ * git would have to stash it and could leave it hidden in the stash, so that file is
+ * left to its own Sync (which commits it first and handles a conflict properly).
+ */
+export async function pullRemote(cwd: string): Promise<PullResult> {
+	if (!(await hasUpstream(cwd)) || (await operationInProgress(cwd)) || (await behindCount(cwd)) === 0) {
+		return { pulled: false };
+	}
+	const incoming = new Set(
+		(await runGit(['-c', 'core.quotepath=false', 'diff', '--name-only', 'HEAD', '@{upstream}'], cwd)).split('\n').filter(Boolean)
+	);
+	const changed = await runGit(['-c', 'core.quotepath=false', 'diff', '--name-only', 'HEAD'], cwd);
+	const untracked = await runGit(['-c', 'core.quotepath=false', 'ls-files', '--others', '--exclude-standard'], cwd);
+	const dirty = `${changed}\n${untracked}`.split('\n').filter(Boolean);
+	const overlap = dirty.find((file) => incoming.has(file));
+	if (overlap) {
+		return { pulled: false, skipped: overlap };
+	}
+	const conflicted = await rebaseOntoUpstream(cwd);
+	if (conflicted.length > 0) {
+		return { pulled: false, conflictFile: conflicted[0] };
+	}
+	return { pulled: true };
 }

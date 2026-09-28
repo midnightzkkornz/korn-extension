@@ -61,6 +61,29 @@ async function push(repo: Repository) {
 	await repo.status();
 }
 
+// Fetch through VS Code's Git extension (same login as VS Code); silent if offline
+export async function fetchRepo(root: string): Promise<boolean> {
+	try {
+		const repo = (await getGitApi()).getRepository(vscode.Uri.file(root));
+		if (!repo || !(await ops.hasUpstream(root))) {
+			return false;
+		}
+		await repo.fetch();
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+// Bring in what others pushed (no push). See ops.pullRemote for when it skips.
+export async function pullRepo(root: string): Promise<ops.PullResult> {
+	const result = await ops.pullRemote(root);
+	if (result.pulled) {
+		await (await getGitApi()).getRepository(vscode.Uri.file(root))?.status();
+	}
+	return result;
+}
+
 export async function getMergeState(uri: vscode.Uri): Promise<ops.MergeState> {
 	try {
 		const cwd = (await ops.runGit(['rev-parse', '--show-toplevel'], path.dirname(uri.fsPath))).trim();
