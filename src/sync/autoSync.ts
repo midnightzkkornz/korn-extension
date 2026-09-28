@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import type { ConflictStore } from '../state/conflicts';
 import { listRmdFiles } from './fileStatus';
-import { fetchRepo, getMergeState, pullRepo } from '../git/sync';
+import { fetchRepo, getBranchInfo, getMergeState, pullRepo } from '../git/sync';
 import { log } from '../shared/log';
 import { decidePull } from './pullPolicy';
 
@@ -257,6 +257,10 @@ export class AutoSync implements vscode.Disposable {
 		}
 		if ((await getMergeState(uri)) !== 'none') {
 			log(`sync ${name}: skipped (merge in progress)`);
+			return;
+		}
+		if ((await getBranchInfo(uri))?.detached) {
+			log(`sync ${name}: skipped (detached HEAD — checkout a branch)`);
 			return;
 		}
 		try {

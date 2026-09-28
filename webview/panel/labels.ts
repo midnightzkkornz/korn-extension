@@ -1,4 +1,4 @@
-import type { ConflictAction, FileRow } from '../../src/shared/protocol';
+import type { ConflictAction, FileRow, RepoInfo } from '../../src/shared/protocol';
 
 // Text shown in the side panel (no DOM here, so it's easy to read and test)
 
@@ -46,9 +46,9 @@ export function syncTitle(file: FileRow): string {
 	}
 }
 
-// blocked: pushing can't work until the conflict is handled
-export function canSync(file: FileRow): boolean {
-	return !file.busy && file.state !== 'nogit' && file.state !== 'blocked';
+// blocked: pushing can't work until the conflict is handled · detached: no branch to sync to
+export function canSync(file: FileRow, detached = false): boolean {
+	return !detached && !file.busy && file.state !== 'nogit' && file.state !== 'blocked';
 }
 
 // Files "Sync all" handles: ours to send (dirty / ahead) and others' to get (incoming)
@@ -74,3 +74,14 @@ export const RESOLVING_ACTIONS: [ConflictAction, string, boolean][] = [
 	['saveCopy', '2. Save my work as copy…', false],
 	['cancel', 'Cancel resolve — เลือกวิธีอื่น', false],
 ];
+
+// "⎇ feature/x → origin/feature/x" line above the file list; kind picks the color
+export function repoLine(repo: RepoInfo): { text: string; kind: 'ok' | 'warn' | 'error' } {
+	if (repo.detached) {
+		return { text: `⎇ detached HEAD — Sync ไม่ได้ (checkout branch ก่อน)`, kind: 'error' };
+	}
+	if (!repo.upstream) {
+		return { text: `⎇ ${repo.branch} · ยังไม่มีบน remote — Sync ครั้งแรกจะสร้างให้`, kind: 'warn' };
+	}
+	return { text: `⎇ ${repo.branch} → ${repo.upstream}`, kind: 'ok' };
+}

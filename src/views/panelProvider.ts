@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import type { ConflictStore } from '../state/conflicts';
-import { listRmdFiles } from '../sync/fileStatus';
+import { listRepos, listRmdFiles } from '../sync/fileStatus';
 import { showLog } from '../shared/log';
 import type { HostToPanel, PanelToHost } from '../shared/protocol';
 import { getNonce } from '../shared/util';
@@ -39,7 +39,8 @@ export class SyncViewProvider implements vscode.WebviewViewProvider {
 			return;
 		}
 		const files = await listRmdFiles(this.conflicts);
-		this.post({ type: 'files', files, autoSync: this.autoSyncText() });
+		const repos = await listRepos(files);
+		this.post({ type: 'files', files, repos, autoSync: this.autoSyncText() });
 	}
 
 	resolveWebviewView(webviewView: vscode.WebviewView) {

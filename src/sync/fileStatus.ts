@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import type { ConflictStore } from '../state/conflicts';
 import * as ops from '../git/ops';
-import type { FileRow, FileRowState } from '../shared/protocol';
+import type { FileRow, FileRowState, RepoInfo } from '../shared/protocol';
 export type { FileRow, FileRowState };
 
 // Sort order in the side panel: what needs attention first
@@ -106,5 +106,17 @@ export async function listRmdFiles(conflicts: ConflictStore): Promise<FileRow[]>
 			ORDER[a.state] - ORDER[b.state] ||
 			(b.lastSync ?? '').localeCompare(a.lastSync ?? '') ||
 			a.name.localeCompare(b.name)
+	);
+}
+
+/** Branch of every repo that has .r.md files (for the side panel and to skip detached repos) */
+export async function listRepos(rows: FileRow[]): Promise<RepoInfo[]> {
+	const roots = [...new Set(rows.map((r) => r.root).filter((r): r is string => !!r))];
+	return Promise.all(
+		roots.map(async (root) => ({
+			root,
+			name: path.basename(root),
+			...(await ops.branchInfo(root).catch((): ops.BranchInfo => ({ detached: false }))),
+		}))
 	);
 }

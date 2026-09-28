@@ -24,6 +24,10 @@ async function openRepo(uri: vscode.Uri): Promise<{ repo: Repository; cwd: strin
 		throw new Error('ไฟล์นี้ไม่ได้อยู่ใน git repository');
 	}
 	const cwd = repo.rootUri.fsPath;
+	// No branch = nothing to commit onto or push to
+	if ((await ops.branchInfo(cwd)).detached) {
+		throw new Error('อยู่ใน detached HEAD — checkout branch ก่อนแล้วค่อย Sync');
+	}
 	return { repo, cwd, file: path.relative(cwd, uri.fsPath) };
 }
 
@@ -48,6 +52,16 @@ export async function pullRepo(root: string): Promise<ops.PullResult> {
 		await (await getGitApi()).getRepository(vscode.Uri.file(root))?.status();
 	}
 	return result;
+}
+
+// Branch of the repo holding this file (undefined = not in a git repo)
+export async function getBranchInfo(uri: vscode.Uri): Promise<ops.BranchInfo | undefined> {
+	try {
+		const cwd = (await ops.runGit(['rev-parse', '--show-toplevel'], path.dirname(uri.fsPath))).trim();
+		return await ops.branchInfo(cwd);
+	} catch {
+		return undefined;
+	}
 }
 
 export async function getMergeState(uri: vscode.Uri): Promise<ops.MergeState> {

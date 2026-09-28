@@ -32,11 +32,20 @@ export interface FileRow {
 	busy: boolean;
 }
 
+// A git repo holding .r.md files: which branch Sync works on and where it pushes
+export interface RepoInfo {
+	root: string;
+	name: string;
+	branch?: string; // undefined when detached
+	upstream?: string; // e.g. "origin/main"; undefined = not on the remote yet
+	detached: boolean;
+}
+
 // ---- Side panel (webview/panel) ----
 
 export type HostToPanel =
 	| { type: 'conflicts'; items: ConflictItem[] }
-	| { type: 'files'; files: FileRow[]; autoSync: string };
+	| { type: 'files'; files: FileRow[]; repos: RepoInfo[]; autoSync: string };
 
 export type PanelToHost =
 	| { type: 'ready' }

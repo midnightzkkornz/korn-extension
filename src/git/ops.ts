@@ -302,3 +302,27 @@ export async function pullRemote(cwd: string): Promise<PullResult> {
 	}
 	return { pulled: true };
 }
+
+export interface BranchInfo {
+	branch?: string; // undefined when detached
+	upstream?: string; // e.g. "origin/main"; undefined = not on the remote yet
+	detached: boolean;
+}
+
+// Which branch Sync works on, and where it pushes to
+export async function branchInfo(cwd: string): Promise<BranchInfo> {
+	let branch: string;
+	try {
+		// works on a brand-new repo too (no commits yet), fails when HEAD is detached
+		branch = (await runGit(['symbolic-ref', '--quiet', '--short', 'HEAD'], cwd)).trim();
+	} catch {
+		return { detached: true };
+	}
+	let upstream: string | undefined;
+	try {
+		upstream = (await runGit(['rev-parse', '--abbrev-ref', '@{upstream}'], cwd)).trim();
+	} catch {
+		upstream = undefined;
+	}
+	return { branch, upstream, detached: false };
+}

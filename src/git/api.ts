@@ -10,13 +10,18 @@ export interface Branch {
 
 export interface Repository {
 	readonly rootUri: vscode.Uri;
-	readonly state: { readonly HEAD: Branch | undefined };
+	readonly state: {
+		readonly HEAD: Branch | undefined;
+		readonly onDidChange: vscode.Event<void>; // fires on branch switch, commits, …
+	};
 	fetch(): Promise<void>;
 	push(remoteName?: string, branchName?: string, setUpstream?: boolean): Promise<void>;
 	status(): Promise<void>;
 }
 
 export interface GitAPI {
+	readonly repositories: Repository[];
+	readonly onDidOpenRepository: vscode.Event<Repository>;
 	getRepository(uri: vscode.Uri): Repository | null;
 }
 

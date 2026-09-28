@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import type { ConflictStore } from '../state/conflicts';
-import { getLastSyncTime, getMergeState, SyncOutcome } from '../git/sync';
+import { getBranchInfo, getLastSyncTime, getMergeState, SyncOutcome } from '../git/sync';
 import { getNonce, SYNC_ICON } from '../shared/util';
 
 // Messages from the webview (see webview/main.ts)
@@ -71,6 +71,17 @@ export class RmdEditorProvider implements vscode.CustomTextEditorProvider {
 
 		// Toolbar status: conflict (from the side panel's list) or the last sync time from git
 		const postSyncState = async () => {
+			// Sync button tooltip: which branch it syncs to
+			const branch = await getBranchInfo(document.uri);
+			const syncTarget = !branch
+				? 'ไฟล์นี้ไม่ได้อยู่ใน git repo'
+				: branch.detached
+					? 'อยู่ใน detached HEAD — checkout branch ก่อนแล้วค่อย Sync'
+					: branch.upstream
+						? `Sync ไป ${branch.upstream}`
+						: `Sync ไป origin/${branch.branch} (ครั้งแรกจะสร้าง branch นี้บน remote)`;
+			panel.webview.postMessage({ type: 'syncTarget', title: syncTarget });
+
 			// Read from git first, so it's still right after a reload
 			const merge = await getMergeState(document.uri);
 			if (merge === 'unresolved') {

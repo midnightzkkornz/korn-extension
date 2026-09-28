@@ -23,6 +23,7 @@ const MODES: Mode[] = ['view', 'text', 'preview', 'editor', 'resolve'];
 type HostMessage =
 	| { type: 'init' | 'update'; text: string; html: string; ackSeq: number }
 	| { type: 'syncState'; state: SyncState; time?: string }
+	| { type: 'syncTarget'; title: string } // "Sync ไป origin/main" (Sync button tooltip)
 	| { type: 'renderedMany'; requestId: number; texts: string[]; htmls: string[] };
 
 // conflict = found, nothing chosen yet · resolving = "Resolve in Korn" chosen · merging = resolved, ready to push
@@ -243,6 +244,10 @@ window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
 	const message = event.data;
 	if (message.type === 'syncState') {
 		setSyncState(message.state, message.time);
+		return;
+	}
+	if (message.type === 'syncTarget') {
+		syncButton.title = message.title;
 		return;
 	}
 	if (message.type === 'renderedMany') {

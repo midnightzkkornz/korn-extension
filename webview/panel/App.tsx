@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'preact/hooks';
-import type { ConflictItem, FileRow, HostToPanel, PanelToHost } from '../../src/shared/protocol';
+import type { ConflictItem, FileRow, HostToPanel, PanelToHost, RepoInfo } from '../../src/shared/protocol';
 import { SyncIcon } from '../shared/SyncIcon';
 import { createPoster, useHostMessage } from '../shared/vscode';
 import { ConflictCard } from './components/ConflictCard';
 import { FileList } from './components/FileList';
-import { isPending } from './labels';
+import { isPending, repoLine } from './labels';
 
 const post = createPoster<PanelToHost>();
 
@@ -12,6 +12,7 @@ const post = createPoster<PanelToHost>();
 export function App() {
 	const [conflicts, setConflicts] = useState<ConflictItem[]>([]);
 	const [files, setFiles] = useState<FileRow[]>();
+	const [repos, setRepos] = useState<RepoInfo[]>([]);
 	const [autoSync, setAutoSync] = useState('Auto-sync: …');
 
 	useHostMessage<HostToPanel>((message) => {
@@ -21,6 +22,7 @@ export function App() {
 				break;
 			case 'files':
 				setFiles(message.files);
+				setRepos(message.repos);
 				setAutoSync(message.autoSync);
 				break;
 		}
@@ -28,7 +30,8 @@ export function App() {
 
 	useEffect(() => post({ type: 'ready' }), []);
 
-	const pending = files?.filter(isPending).length ?? 0;
+	const detachedRoots = new Set(repos.filter((r) => r.detached).map((r) => r.root));
+	const pending = files?.filter((f) => isPending(f) && !(f.root && detachedRoots.has(f.root))).length ?? 0;
 
 	return (
 		<>
@@ -60,8 +63,18 @@ export function App() {
 			))}
 
 			<div class="section">FILES</div>
+			{repos.map((repo) => {
+				const line = repoLine(repo);
+				return (
+					<div key={repo.root} class={`repo repo-${line.kind}`} title={repo.root}>
+						{repos.length > 1 && <span class="repo-name">{repo.name}</span>}
+						{line.text}
+					</div>
+				);
+			})}
 			<FileList
 				files={files}
+				detachedRoots={detachedRoots}
 				onOpen={(uri) => post({ type: 'open', uri })}
 				onSync={(uri) => post({ type: 'syncFile', uri })}
 			/>

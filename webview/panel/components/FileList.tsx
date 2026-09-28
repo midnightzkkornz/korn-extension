@@ -4,11 +4,12 @@ import { canSync, showsIncomingNote, stateLabel, syncTitle } from '../labels';
 
 interface Props {
 	files: FileRow[] | undefined; // undefined = not loaded yet
+	detachedRoots: Set<string>; // repos in detached HEAD: nothing there can be synced
 	onOpen: (uri: string) => void;
 	onSync: (uri: string) => void;
 }
 
-export function FileList({ files, onOpen, onSync }: Props) {
+export function FileList({ files, detachedRoots, onOpen, onSync }: Props) {
 	if (!files) {
 		return (
 			<ul class="files">
@@ -26,20 +27,33 @@ export function FileList({ files, onOpen, onSync }: Props) {
 	return (
 		<ul class="files">
 			{files.map((file) => (
-				<FileRowView key={file.uri} file={file} onOpen={onOpen} onSync={onSync} />
+				<FileRowView
+					key={file.uri}
+					file={file}
+					detached={!!file.root && detachedRoots.has(file.root)}
+					onOpen={onOpen}
+					onSync={onSync}
+				/>
 			))}
 		</ul>
 	);
 }
 
-function FileRowView({ file, onOpen, onSync }: { file: FileRow } & Omit<Props, 'files'>) {
-	const title = syncTitle(file);
+interface RowProps {
+	file: FileRow;
+	detached: boolean;
+	onOpen: (uri: string) => void;
+	onSync: (uri: string) => void;
+}
+
+function FileRowView({ file, detached, onOpen, onSync }: RowProps) {
+	const title = detached ? 'อยู่ใน detached HEAD — checkout branch ก่อนแล้วค่อย Sync' : syncTitle(file);
 	return (
 		<li class="row">
 			<span class="name" title={`เปิด ${file.name}`} onClick={() => onOpen(file.uri)}>
 				{file.name}
 			</span>
-			<button class="sync" title={title} disabled={!canSync(file)} onClick={() => onSync(file.uri)}>
+			<button class="sync" title={title} disabled={!canSync(file, detached)} onClick={() => onSync(file.uri)}>
 				<SyncIcon />
 			</button>
 			<span class="state" title={title}>

@@ -28,6 +28,21 @@ export class ConflictStore {
 		}
 	}
 
+	/** Forget the conflicts of one repo (they belonged to the branch that was just switched away from) */
+	clearRepo(root: string) {
+		const prefix = root.endsWith(path.sep) ? root : root + path.sep;
+		let changed = false;
+		for (const [key, item] of this.items) {
+			if (vscode.Uri.parse(item.uri).fsPath.startsWith(prefix)) {
+				this.items.delete(key);
+				changed = true;
+			}
+		}
+		if (changed) {
+			this.onDidChangeEmitter.fire();
+		}
+	}
+
 	has(uri: vscode.Uri): boolean {
 		return this.items.has(uri.toString());
 	}

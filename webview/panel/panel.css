@@ -128,3 +128,14 @@ button.secondary:hover { background: var(--vscode-button-secondaryHoverBackgroun
 .dot.s-synced { background: var(--vscode-charts-green); }
 .dot.s-never, .dot.s-nogit { background: var(--vscode-disabledForeground, #888); }
 .empty { color: var(--vscode-descriptionForeground); }
+
+/* Branch Sync works on, one line per repo */
+.repo {
+	margin: 0 0 6px;
+	font-size: 0.9em;
+	word-break: break-word;
+	color: var(--vscode-descriptionForeground);
+}
+.repo-name { font-weight: 600; margin-right: 6px; }
+.repo-warn { color: var(--vscode-editorWarning-foreground); }
+.repo-error { color: var(--vscode-errorForeground); }

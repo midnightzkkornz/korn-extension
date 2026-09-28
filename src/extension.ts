@@ -6,6 +6,7 @@ import { registerSyncCommands, syncOne } from './commands/sync';
 import { ctx } from './context';
 import { ConflictStore } from './state/conflicts';
 import { AutoSync } from './sync/autoSync';
+import { watchBranches } from './sync/branchWatch';
 import { RmdEditorProvider } from './views/editorProvider';
 import { SyncViewProvider } from './views/panelProvider';
 
@@ -51,6 +52,9 @@ export function activate(context: vscode.ExtensionContext) {
 		...registerFileCommands(),
 		...registerEditorCommands()
 	);
+
+	// Switching branch: forget conflicts of the old branch and show the new one in the side panel
+	watchBranches(conflicts, () => panel.refresh()).then((watcher) => context.subscriptions.push(watcher));
 
 	ensureRightEditor();
 }
