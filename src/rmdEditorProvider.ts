@@ -11,7 +11,9 @@ type EditorMessage =
 	// Resolve mode (webview/resolve.ts)
 	| { type: 'renderMany'; requestId: number; texts: string[] }
 	| { type: 'finishResolve'; text: string }
-	| { type: 'openTextEditor' };
+	| { type: 'openTextEditor' }
+	| { type: 'reopenConflict' }
+	| { type: 'cancelResolve' };
 
 // Korn editor for *.r.md: one tab with an always-visible toolbar and 4 modes
 // (Korn / Text / Preview / Editor). The UI lives in webview/ and is bundled into out/webview.js.
@@ -72,7 +74,8 @@ export class RmdEditorProvider implements vscode.CustomTextEditorProvider {
 			// Read from git first, so it's still right after a reload
 			const merge = await getMergeState(document.uri);
 			if (merge === 'unresolved') {
-				panel.webview.postMessage({ type: 'syncState', state: 'conflict' });
+				// "Resolve in Korn" chosen, markers still in the file
+				panel.webview.postMessage({ type: 'syncState', state: 'resolving' });
 				return;
 			}
 			if (merge === 'resolved') {
@@ -138,6 +141,12 @@ export class RmdEditorProvider implements vscode.CustomTextEditorProvider {
 					break;
 				case 'openTextEditor':
 					vscode.commands.executeCommand('korn.openTextEditor', document.uri);
+					break;
+				case 'cancelResolve':
+					vscode.commands.executeCommand('korn.resolveConflict', document.uri, 'cancel');
+					break;
+				case 'reopenConflict':
+					vscode.commands.executeCommand('korn.showConflictChoices', document.uri);
 					break;
 			}
 		});

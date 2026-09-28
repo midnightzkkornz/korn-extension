@@ -30,14 +30,20 @@ export function activate(context: vscode.ExtensionContext) {
 
 			const name = vscode.workspace.asRelativePath(target);
 			try {
-				const result = await vscode.window.withProgress(
-					{ location: vscode.ProgressLocation.Notification, title: `Sync ${name}…` },
-					() => syncFile(target)
+				const run = await conflicts.runExclusive(target, () =>
+					vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: `Sync ${name}…` }, () =>
+						syncFile(target)
+					)
 				);
+				if (!run) {
+					showBusy(name);
+					return undefined;
+				}
+				const result = run.value;
 				if (result.kind === 'conflict') {
 					conflicts.add(target);
 					askConflictAction(target); // not awaited: the Sync button finishes with state "conflict"
-				} else {
+				} else if (result.kind === 'synced') {
 					conflicts.remove(target);
 					vscode.window.showInformationMessage(
 						result.committed ? `Synced: ${result.message}` : `ไม่มีการเปลี่ยนแปลงใน ${name} — push แล้ว`
@@ -49,6 +55,9 @@ export function activate(context: vscode.ExtensionContext) {
 				throw error;
 			}
 		}),
+
+		// Show the conflict choices again (clicking "Conflict — เลือกวิธีจัดการ" in the Korn toolbar)
+		vscode.commands.registerCommand('korn.showConflictChoices', (uri: vscode.Uri) => askConflictAction(uri)),
 
 		// The 3 conflict choices (modal dialog + side panel)
 		vscode.commands.registerCommand('korn.resolveConflict', (uri: vscode.Uri | string, action: ConflictAction) =>
@@ -117,13 +126,41 @@ const CONFLICT_CHOICES: ConflictChoice[] = [
 	},
 ];
 
-// Compact vertical list (Quick Pick) instead of a wide modal dialog
-function askConflictAction(uri: vscode.Uri) {
+const CONTINUE_RESOLVE: ConflictChoice = {
+	label: '$(git-merge) 3. Continue in Resolve',
+	detail: 'กลับไปแท็บ ⚠ Resolve ที่เลือกค้างไว้',
+	action: 'resolve',
+};
+const CANCEL_RESOLVE: ConflictChoice = {
+	label: '$(discard) Cancel resolve — เลือกวิธีอื่น',
+	detail: 'ยกเลิกสิ่งที่แก้ในแท็บ Resolve แล้วกลับไปเลือกใหม่',
+	action: 'cancel',
+};
+
+const ACTION_NAMES: Record<ConflictAction, string> = {
+	keepMine: 'Replace with my version',
+	saveCopy: 'Save my work as copy',
+	resolve: 'Resolve in Korn',
+	cancel: 'Cancel resolve',
+};
+
+function showBusy(name: string) {
+	vscode.window.showInformationMessage(`กำลังจัดการ ${name} อยู่ รอสักครู่`);
+}
+
+// Compact vertical list (Quick Pick) instead of a wide modal dialog.
+// While "Resolve in Korn" is in progress, option 3 continues it and a Cancel option is added.
+async function askConflictAction(uri: vscode.Uri) {
 	const name = vscode.workspace.asRelativePath(uri);
+	const state = await getMergeState(uri);
+	const resolving = state === 'unresolved' || state === 'resolved';
+
 	const pick = vscode.window.createQuickPick<ConflictChoice>();
 	pick.title = `⚠ Conflict: ${name} ถูกแก้บน remote ด้วย`;
-	pick.placeholder = 'เลือกวิธีจัดการ (Esc = เลือกทีหลังในแผง Korn Sync)';
-	pick.items = CONFLICT_CHOICES;
+	pick.placeholder = resolving
+		? 'กำลังแก้ในแท็บ Resolve อยู่ — ทำต่อ หรือเปลี่ยนวิธี (Esc = ปิด)'
+		: 'เลือกวิธีจัดการ (Esc = เลือกทีหลังในแผง Korn Sync)';
+	pick.items = resolving ? [CONTINUE_RESOLVE, CONFLICT_CHOICES[0], CONFLICT_CHOICES[1], CANCEL_RESOLVE] : CONFLICT_CHOICES;
 	pick.ignoreFocusOut = true;
 
 	let chosen: ConflictAction | undefined;
@@ -144,6 +181,25 @@ function askConflictAction(uri: vscode.Uri) {
 
 async function handleConflict(uri: vscode.Uri, action: ConflictAction) {
 	const name = vscode.workspace.asRelativePath(uri);
+	if (conflicts.isBusy(uri)) {
+		showBusy(name);
+		return;
+	}
+
+	// Switching away from "Resolve in Korn" throws away what was fixed there: ask first
+	const state = await getMergeState(uri);
+	const resolving = state === 'unresolved' || state === 'resolved';
+	if (resolving && (action === 'keepMine' || action === 'saveCopy' || action === 'cancel')) {
+		const confirm = action === 'cancel' ? 'ยกเลิกแล้วเลือกใหม่' : `ยกเลิกแล้วใช้ "${ACTION_NAMES[action]}"`;
+		const answer = await vscode.window.showWarningMessage(
+			`ยกเลิกสิ่งที่แก้ในแท็บ Resolve ของ ${name}?`,
+			{ modal: true, detail: 'ไฟล์จะกลับเป็นเวอร์ชันของเราก่อนเริ่ม Resolve ส่วนไฟล์อื่นที่แก้ค้างไว้ไม่หาย' },
+			confirm
+		);
+		if (answer !== confirm) {
+			return; // keep resolving
+		}
+	}
 
 	let copyName: string | undefined;
 	if (action === 'saveCopy') {
@@ -172,12 +228,32 @@ async function handleConflict(uri: vscode.Uri, action: ConflictAction) {
 	}
 
 	try {
-		const result = await vscode.window.withProgress(
-			{ location: vscode.ProgressLocation.Notification, title: `Resolve conflict ${name}…` },
-			() => resolveConflict(uri, action, copyName)
+		const run = await conflicts.runExclusive(uri, () =>
+			vscode.window.withProgress(
+				{ location: vscode.ProgressLocation.Notification, title: `${ACTION_NAMES[action]}: ${name}…` },
+				() => resolveConflict(uri, action, copyName)
+			)
 		);
+		if (!run) {
+			showBusy(name);
+			return;
+		}
+		const result = run.value;
+
+		if (result?.kind === 'noConflict') {
+			conflicts.remove(uri);
+			vscode.window.showInformationMessage(`ไม่มี conflict ใน ${name} แล้ว — กด Sync ได้ตามปกติ`);
+			return;
+		}
+
+		if (action === 'cancel') {
+			conflicts.add(uri, false);
+			askConflictAction(uri); // choose again
+			return;
+		}
 
 		if (action === 'resolve') {
+			conflicts.add(uri, true);
 			// The Korn editor switches to its Resolve mode by itself when it sees the conflict markers
 			await switchView(uri, RmdEditorProvider.viewType);
 			vscode.window.showInformationMessage(`แก้ conflict ใน ${name} ในแท็บ ⚠ Resolve แล้วกด Finish & Sync`);
@@ -190,7 +266,7 @@ async function handleConflict(uri: vscode.Uri, action: ConflictAction) {
 		}
 		vscode.window.showInformationMessage(`Synced: ${result?.kind === 'synced' ? result.message ?? name : name}`);
 	} catch (error) {
-		showGitError(`แก้ conflict ${name} ไม่สำเร็จ`, error);
+		showGitError(`${ACTION_NAMES[action]} ${name} ไม่สำเร็จ`, error);
 	}
 }
 

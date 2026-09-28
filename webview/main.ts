@@ -25,7 +25,8 @@ type HostMessage =
 	| { type: 'syncState'; state: SyncState; time?: string }
 	| { type: 'renderedMany'; requestId: number; texts: string[]; htmls: string[] };
 
-type SyncState = 'syncing' | 'done' | 'error' | 'idle' | 'conflict' | 'merging';
+// conflict = found, nothing chosen yet · resolving = "Resolve in Korn" chosen · merging = resolved, ready to push
+type SyncState = 'syncing' | 'done' | 'error' | 'idle' | 'conflict' | 'resolving' | 'merging';
 
 // Per-tab state that survives reloads
 interface WebviewState {
@@ -209,6 +210,12 @@ syncButton.addEventListener('click', () => {
 
 // ---- Sync status in the toolbar ----
 const statusEl = document.getElementById('status')!;
+// "Conflict — เลือกวิธีจัดการ" is clickable: shows the choices again after pressing Esc
+statusEl.addEventListener('click', () => {
+	if (statusEl.dataset.state === 'conflict') {
+		vscode.postMessage({ type: 'reopenConflict' });
+	}
+});
 const statusText = document.getElementById('status-text')!;
 let lastSyncLabel = 'Last sync: never';
 
@@ -221,16 +228,14 @@ function setSyncState(state: SyncState, time?: string) {
 		// Same format as the commit message: YYYY-MM-DD HH:mm
 		lastSyncLabel = `Last sync: ${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 	}
-	statusText.textContent =
-		state === 'syncing'
-			? 'Syncing…'
-			: state === 'error'
-				? 'Sync failed'
-				: state === 'conflict'
-					? 'Conflict — เลือกในแท็บ Resolve แล้วกด Finish & Sync'
-					: state === 'merging'
-						? 'Merge ready — กด Sync เพื่อ push'
-						: lastSyncLabel;
+	const labels: Partial<Record<SyncState, string>> = {
+		syncing: 'Syncing…',
+		error: 'Sync failed',
+		conflict: 'Conflict — เลือกวิธีจัดการ',
+		resolving: 'Conflict — เลือกในแท็บ Resolve แล้วกด Finish & Sync',
+		merging: 'Merge ready — กด Sync เพื่อ push',
+	};
+	statusText.textContent = labels[state] ?? lastSyncLabel;
 }
 
 // ---- Messages from the extension ----

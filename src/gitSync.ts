@@ -20,9 +20,12 @@ interface GitAPI {
 
 export type SyncOutcome =
 	| { kind: 'synced'; committed: boolean; message?: string; time: Date }
-	| { kind: 'conflict'; file: string };
+	| { kind: 'conflict'; file: string }
+	// nothing to resolve any more (already handled, or the remote has nothing new)
+	| { kind: 'noConflict' };
 
-export type ConflictAction = 'keepMine' | 'saveCopy' | 'resolve';
+// cancel = undo "Resolve in Korn" and go back to choosing
+export type ConflictAction = 'keepMine' | 'saveCopy' | 'resolve' | 'cancel';
 
 async function getGitApi(): Promise<GitAPI> {
 	const ext = vscode.extensions.getExtension<{ getAPI(version: 1): GitAPI }>('vscode.git');
@@ -120,13 +123,32 @@ export async function syncFile(uri: vscode.Uri): Promise<SyncOutcome> {
 // Handle a conflict found by syncFile (the 3 choices from the design)
 export async function resolveConflict(uri: vscode.Uri, action: ConflictAction, copyName?: string): Promise<SyncOutcome | undefined> {
 	const { repo, cwd, file } = await openRepo(uri);
-	if (await ops.operationInProgress(cwd)) {
-		if (action === 'resolve') {
-			return undefined; // merge already started, just show it again
-		}
-		throw new Error('มี merge/rebase ค้างอยู่ แก้ใน Source Control ให้เสร็จก่อน');
+	const state = await ops.mergeState(cwd, file);
+	if (state === 'rebase') {
+		throw new Error('มี rebase ค้างอยู่ แก้ใน Source Control ให้เสร็จก่อน');
 	}
+	const merging = state === 'unresolved' || state === 'resolved';
+
+	if (action === 'resolve' && merging) {
+		return undefined; // "Resolve in Korn" already started, just show it again
+	}
+	if (action === 'cancel') {
+		if (merging) {
+			await ops.abortMerge(cwd);
+			await repo.status();
+		}
+		return undefined;
+	}
+	if (merging) {
+		// switching from "Resolve in Korn" to option 1 or 2 (the caller already asked to confirm)
+		await ops.abortMerge(cwd);
+	}
+
 	await repo.fetch();
+	if ((await ops.behindCount(cwd)) === 0) {
+		await repo.status();
+		return { kind: 'noConflict' };
+	}
 	const time = new Date();
 
 	switch (action) {
@@ -144,6 +166,6 @@ export async function resolveConflict(uri: vscode.Uri, action: ConflictAction, c
 		case 'resolve':
 			await ops.startMerge(cwd);
 			await repo.status();
-			return undefined; // the user finishes the merge in Source Control
+			return undefined; // the user finishes it in the Resolve tab, then Sync pushes
 	}
 }

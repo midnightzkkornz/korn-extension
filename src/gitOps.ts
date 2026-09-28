@@ -195,6 +195,11 @@ export async function saveCopy(cwd: string, file: string, copy: string, time: Da
 	return message;
 }
 
+// Undo "Resolve in Korn": back to before the merge (our commit, our other uncommitted files restored)
+export async function abortMerge(cwd: string): Promise<void> {
+	await runGit(['merge', '--abort'], cwd);
+}
+
 // 3. Resolve in Korn: start a normal merge and leave the conflict markers for the user.
 // diff3 style adds the "|||||||" original section, shown as "Original" in the Resolve mode.
 export async function startMerge(cwd: string): Promise<void> {

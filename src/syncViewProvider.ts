@@ -109,6 +109,7 @@ export class SyncViewProvider implements vscode.WebviewViewProvider {
 			color: var(--vscode-descriptionForeground);
 		}
 		.conflict button { text-align: left; }
+		.conflict button:disabled { opacity: 0.5; cursor: default; }
 		.conflict button + button { margin-top: 6px; }
 	</style>
 </head>
@@ -129,6 +130,13 @@ export class SyncViewProvider implements vscode.WebviewViewProvider {
 			['saveCopy', '2. Save my work as copy…', 'secondary'],
 			['resolve', '3. Resolve in Korn', 'secondary'],
 		];
+		// While "Resolve in Korn" is in progress: continue it, switch to 1/2, or cancel
+		const RESOLVING_ACTIONS = [
+			['resolve', '3. Continue in Resolve', ''],
+			['keepMine', '1. Replace with my version', 'secondary'],
+			['saveCopy', '2. Save my work as copy…', 'secondary'],
+			['cancel', 'Cancel resolve — เลือกวิธีอื่น', 'secondary'],
+		];
 
 		function render(items) {
 			list.replaceChildren();
@@ -143,13 +151,18 @@ export class SyncViewProvider implements vscode.WebviewViewProvider {
 				file.textContent = item.name;
 				const hint = document.createElement('div');
 				hint.className = 'hint';
-				hint.textContent = 'ไฟล์นี้ถูกแก้บน remote ด้วย เลือกวิธีจัดการ:';
+				hint.textContent = item.busy
+					? 'กำลังจัดการ…'
+					: item.resolving
+						? 'กำลังแก้ในแท็บ ⚠ Resolve'
+						: 'ไฟล์นี้ถูกแก้บน remote ด้วย เลือกวิธีจัดการ:';
 				card.append(title, file, hint);
 
-				for (const [action, label, cls] of ACTIONS) {
+				for (const [action, label, cls] of item.resolving ? RESOLVING_ACTIONS : ACTIONS) {
 					const button = document.createElement('button');
 					button.textContent = label;
 					button.className = cls;
+					button.disabled = item.busy; // one action at a time per file
 					button.addEventListener('click', () => vscode.postMessage({ type: 'resolve', uri: item.uri, action }));
 					card.append(button);
 				}

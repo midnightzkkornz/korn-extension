@@ -120,11 +120,19 @@ export class ResolveView {
 			el('span', 'resolve-progress', `${this.resolvedCount} / ${this.conflicts.length} conflicts resolved`),
 			el('span', 'spacer')
 		);
+		const cancel = button(
+			'Cancel — เลือกวิธีอื่น',
+			() => {
+				this.host.saveChoices(this.key, []); // forget the picks made here
+				this.host.postMessage({ type: 'cancelResolve' });
+			},
+			'link'
+		);
 		const openText = button('Open in VS Code editor', () => this.host.postMessage({ type: 'openTextEditor' }), 'link');
 		const finish = button('✓ Finish & Sync', () => this.finish(), 'primary');
 		finish.disabled = !done;
 		finish.title = done ? 'Write the result, conclude the merge and push' : 'Resolve every conflict first';
-		header.append(openText, finish);
+		header.append(cancel, openText, finish);
 		this.root.append(header);
 
 		const body = el('div', 'resolve-body');
