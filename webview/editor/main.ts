@@ -4,16 +4,17 @@ import { Annotation } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { styleTags, Tag, tags } from '@lezer/highlight';
 import { basicSetup } from 'codemirror';
-import { Editor, editorViewCtx, rootCtx, defaultValueCtx } from '@milkdown/kit/core';
+import { Editor, editorViewCtx, remarkStringifyOptionsCtx, rootCtx, defaultValueCtx } from '@milkdown/kit/core';
 import { history } from '@milkdown/kit/plugin/history';
 import { listener, listenerCtx } from '@milkdown/kit/plugin/listener';
 import { commonmark } from '@milkdown/kit/preset/commonmark';
 import { gfm } from '@milkdown/kit/preset/gfm';
-import { replaceAll } from '@milkdown/kit/utils';
+import { getMarkdown, replaceAll } from '@milkdown/kit/utils';
 import '@milkdown/kit/prose/view/style/prosemirror.css';
 import './style.css';
 import type { Choice } from './resolve/conflictParser';
 import { ResolveView } from './resolve/resolve';
+import { preferredBullet, preserveFormatting } from './preserveFormatting';
 
 type Mode = 'view' | 'text' | 'preview' | 'editor' | 'resolve';
 const MODES: Mode[] = ['view', 'text', 'preview', 'editor', 'resolve'];
@@ -131,21 +132,27 @@ function setCodeMirrorText(text: string) {
 }
 
 // ---- Editor mode: Milkdown WYSIWYG (created on first use) ----
+// Milkdown writes markdown in its own style; preserveFormatting() keeps the file's original
+// text everywhere the user didn't edit (see webview/editor/preserveFormatting.ts).
 let milkdown: Editor | undefined;
-let milkdownText = '';
+let milkdownSource = ''; // the document text Milkdown currently shows
+let milkdownOriginal = ''; // the file text when it was loaded into Milkdown
+let milkdownBaseline = ''; // Milkdown's own markdown for milkdownOriginal, before any edit
 
 async function showMilkdown(text: string) {
 	if (!milkdown) {
-		milkdownText = text;
+		milkdownSource = milkdownOriginal = text;
 		milkdown = await Editor.make()
 			.config((ctx) => {
 				ctx.set(rootCtx, wysiwygPane);
 				ctx.set(defaultValueCtx, text);
+				// write lists with the file's bullet ("*" or "-")
+				ctx.update(remarkStringifyOptionsCtx, (options) => ({ ...options, bullet: preferredBullet(text) }));
 				ctx.get(listenerCtx).markdownUpdated((ctx, md) => {
 					// Only forward changes the user typed, not our own replaceAll()
 					if (ctx.get(editorViewCtx).hasFocus()) {
-						milkdownText = md;
-						onLocalEdit(md);
+						milkdownSource = preserveFormatting(milkdownOriginal, milkdownBaseline, md);
+						onLocalEdit(milkdownSource);
 					}
 				});
 			})
@@ -154,9 +161,11 @@ async function showMilkdown(text: string) {
 			.use(history)
 			.use(listener)
 			.create();
-	} else if (text !== milkdownText) {
-		milkdownText = text;
+		milkdownBaseline = milkdown.action(getMarkdown());
+	} else if (text !== milkdownSource) {
+		milkdownSource = milkdownOriginal = text;
 		milkdown.action(replaceAll(text));
+		milkdownBaseline = milkdown.action(getMarkdown());
 	}
 }
 
@@ -270,6 +279,20 @@ window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
 		setMode(mode);
 	}
 	refreshResolve();
+});
+
+// <base href> points at the file's folder (for relative images), which would also turn
+// "#heading" links into links to that folder: scroll to the heading on this page instead
+document.addEventListener('click', (event) => {
+	const link = (event.target as Element | null)?.closest?.('a');
+	const href = link?.getAttribute('href');
+	if (!href?.startsWith('#')) {
+		return;
+	}
+	event.preventDefault();
+	const id = decodeURIComponent(href.slice(1));
+	const pane = document.querySelector(`#${CSS.escape(mode === 'editor' ? 'wysiwyg' : 'rendered')}`) ?? document;
+	(pane.querySelector(`[id="${CSS.escape(id)}"]`) ?? document.getElementById(id))?.scrollIntoView({ block: 'start' });
 });
 
 vscode.postMessage({ type: 'ready' });

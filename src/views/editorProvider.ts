@@ -193,11 +193,15 @@ export class RmdEditorProvider implements vscode.CustomTextEditorProvider {
 					.map((file) => `<link rel="stylesheet" href="${webview.asWebviewUri(vscode.Uri.joinPath(media, file))}">`)
 					.join('\n\t')
 			: '';
+		// Relative paths in the markdown (![](img.png)) resolve against the file's folder.
+		// The folder is in localResourceRoots; scripts/styles above use absolute URLs, so they're unaffected.
+		const baseHref = `${webview.asWebviewUri(vscode.Uri.joinPath(document.uri, '..'))}/`;
 
 		return /* html */ `<!DOCTYPE html>
 <html lang="en">
 <head>
 	<meta charset="UTF-8">
+	<base href="${escapeHtml(baseHref)}">
 	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} https: data:; font-src ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	${markdownStyles}

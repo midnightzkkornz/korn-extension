@@ -1,14 +1,37 @@
 {
   "name": "korn-extension",
-  "displayName": "Korn Extension",
-  "description": "Sync UI for .r.md markdown files",
-  "publisher": "local",
-  "version": "0.0.1",
+  "displayName": "Korn Markdown Sync",
+  "description": "Markdown notes (.r.md) with a toolbar, 4 view modes and one-click Git sync: auto-sync, pull, and a built-in conflict resolver.",
+  "publisher": "midnightzkkornz",
+  "version": "0.1.1",
+  "license": "MIT",
+  "icon": "media/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/midnightzkkornz/korn-extension.git"
+  },
+  "bugs": {
+    "url": "https://github.com/midnightzkkornz/korn-extension/issues"
+  },
+  "homepage": "https://github.com/midnightzkkornz/korn-extension#readme",
+  "galleryBanner": {
+    "color": "#1f2937",
+    "theme": "dark"
+  },
   "engines": {
     "vscode": "^1.90.0"
   },
   "categories": [
-    "Other"
+    "Other",
+    "SCM Providers"
+  ],
+  "keywords": [
+    "markdown",
+    "git",
+    "sync",
+    "notes",
+    "conflict",
+    "r.md"
   ],
   "activationEvents": [
     "onLanguage:markdown"
@@ -103,10 +126,13 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
+    "clean": "node -e \"require('fs').rmSync('out',{recursive:true,force:true})\"",
+    "vscode:prepublish": "npm run clean && npm run compile",
     "compile": "tsc -p ./ && tsc -p webview && node esbuild.mjs",
     "watch": "node esbuild.mjs --watch & tsc -watch -p ./",
-    "test": "node test/run.mjs"
+    "test": "node test/run.mjs",
+    "package": "vsce package",
+    "publish": "vsce publish"
   },
   "devDependencies": {
     "@codemirror/lang-markdown": "^6.5.2",
@@ -117,6 +143,7 @@
     "@milkdown/kit": "^7.22.2",
     "@types/node": "^22.0.0",
     "@types/vscode": "~1.90.0",
+    "@vscode/vsce": "^4.0.0",
     "codemirror": "^6.0.2",
     "diff": "^9.0.0",
     "esbuild": "^0.28.2",

@@ -7,3 +7,8 @@ esbuild.mjs
 .gitignore
 **/*.map
 test/**
+Makefile
+*.vsix
+media/icon.svg
+.github/**
+out/**/*.map
