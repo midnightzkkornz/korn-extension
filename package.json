@@ -84,6 +84,22 @@
           "group": "navigation"
         }
       ]
+    },
+    "configuration": {
+      "title": "Korn",
+      "properties": {
+        "korn.autoSync.onSave": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Sync ไฟล์ `.r.md` ให้เองหลังเซฟ (รอ 2 วินาทีหลังเซฟครั้งล่าสุด)"
+        },
+        "korn.autoSync.intervalMinutes": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "markdownDescription": "Sync ทุกไฟล์ `.r.md` ที่ยังไม่ sync ทุก N นาที (`0` = ปิด)"
+        }
+      }
     }
   },
   "scripts": {

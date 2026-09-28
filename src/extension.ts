@@ -1,19 +1,35 @@
 import * as vscode from 'vscode';
+import { AutoSync, describeSettings } from './autoSync';
 import { ConflictStore } from './conflicts';
+import { listRmdFiles } from './fileStatus';
 import { ConflictAction, getMergeState, resolveConflict, SyncOutcome, syncFile } from './gitSync';
 import { RmdEditorProvider } from './rmdEditorProvider';
 import { SyncViewProvider } from './syncViewProvider';
 
-// Called once when the extension is activated
 const conflicts = new ConflictStore();
+let panel: SyncViewProvider;
+let autoSync: AutoSync;
 
+// Called once when the extension is activated
 export function activate(context: vscode.ExtensionContext) {
+	panel = new SyncViewProvider(context.extensionUri, conflicts, () => describeSettings(autoSync.currentSettings));
+	autoSync = new AutoSync(conflicts, (uri) => syncOne(uri, { quiet: true }), () => panel.refresh());
+
+	// Keep the file list in the side panel up to date
+	const watcher = vscode.workspace.createFileSystemWatcher('**/*.r.md');
+	context.subscriptions.push(
+		watcher,
+		watcher.onDidCreate(() => panel.refresh()),
+		watcher.onDidDelete(() => panel.refresh()),
+		watcher.onDidChange(() => panel.refresh()),
+		vscode.workspace.onDidSaveTextDocument((doc) => doc.uri.path.endsWith('.r.md') && panel.refresh()),
+		vscode.window.onDidChangeWindowState((state) => state.focused && panel.refresh())
+	);
+
 	context.subscriptions.push(
 		conflicts,
-		vscode.window.registerWebviewViewProvider(
-			SyncViewProvider.viewId,
-			new SyncViewProvider(context.extensionUri, conflicts)
-		),
+		autoSync,
+		vscode.window.registerWebviewViewProvider(SyncViewProvider.viewId, panel),
 
 		vscode.window.registerCustomEditorProvider(
 			RmdEditorProvider.viewType,
@@ -28,33 +44,11 @@ export function activate(context: vscode.ExtensionContext) {
 				return undefined;
 			}
 
-			const name = vscode.workspace.asRelativePath(target);
-			try {
-				const run = await conflicts.runExclusive(target, () =>
-					vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: `Sync ${name}…` }, () =>
-						syncFile(target)
-					)
-				);
-				if (!run) {
-					showBusy(name);
-					return undefined;
-				}
-				const result = run.value;
-				if (result.kind === 'conflict') {
-					conflicts.add(target);
-					askConflictAction(target); // not awaited: the Sync button finishes with state "conflict"
-				} else if (result.kind === 'synced') {
-					conflicts.remove(target);
-					vscode.window.showInformationMessage(
-						result.committed ? `Synced: ${result.message}` : `ไม่มีการเปลี่ยนแปลงใน ${name} — push แล้ว`
-					);
-				}
-				return result;
-			} catch (error) {
-				showGitError(`Sync ${name} ไม่สำเร็จ`, error);
-				throw error;
-			}
+			return syncOne(target);
 		}),
+
+		// Sync every .r.md that has unsynced changes (side panel "Sync all")
+		vscode.commands.registerCommand('korn.syncAll', () => syncAll()),
 
 		// Show the conflict choices again (clicking "Conflict — เลือกวิธีจัดการ" in the Korn toolbar)
 		vscode.commands.registerCommand('korn.showConflictChoices', (uri: vscode.Uri) => askConflictAction(uri)),
@@ -125,6 +119,86 @@ const CONFLICT_CHOICES: ConflictChoice[] = [
 		action: 'resolve',
 	},
 ];
+
+/**
+ * Sync one file. Used by the Sync buttons (quiet = false) and by auto-sync / Sync all (quiet = true):
+ * quiet = no popups on success, and a conflict gives one notification instead of opening the choices.
+ */
+async function syncOne(target: vscode.Uri, { quiet = false } = {}): Promise<SyncOutcome | undefined> {
+	const name = vscode.workspace.asRelativePath(target);
+	try {
+		const run = await conflicts.runExclusive(target, () =>
+			quiet
+				? syncFile(target)
+				: vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: `Sync ${name}…` }, () =>
+						syncFile(target)
+					)
+		);
+		if (!run) {
+			if (!quiet) {
+				showBusy(name);
+			}
+			return undefined;
+		}
+		const result = run.value;
+		if (result.kind === 'conflict') {
+			conflicts.add(target);
+			if (quiet) {
+				vscode.window
+					.showWarningMessage(`Conflict ใน ${name} — ไฟล์นี้ถูกแก้บน remote ด้วย`, 'เลือกวิธีจัดการ')
+					.then((choice) => choice && askConflictAction(target));
+			} else {
+				askConflictAction(target); // not awaited: the Sync button finishes with state "conflict"
+			}
+		} else if (result.kind === 'synced') {
+			conflicts.remove(target);
+			if (quiet) {
+				vscode.window.setStatusBarMessage(`$(check) Korn: synced ${name}`, 3000);
+			} else {
+				vscode.window.showInformationMessage(
+					result.committed ? `Synced: ${result.message}` : `ไม่มีการเปลี่ยนแปลงใน ${name} — push แล้ว`
+				);
+			}
+		}
+		return result;
+	} catch (error) {
+		if (!quiet) {
+			showGitError(`Sync ${name} ไม่สำเร็จ`, error);
+		}
+		throw error;
+	} finally {
+		panel.refresh();
+	}
+}
+
+async function syncAll() {
+	const rows = (await listRmdFiles(conflicts)).filter((row) => row.state === 'dirty' || row.state === 'ahead');
+	if (rows.length === 0) {
+		vscode.window.showInformationMessage('ทุกไฟล์ sync แล้ว');
+		return;
+	}
+	let synced = 0;
+	const failed: string[] = [];
+	await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'Sync all' }, async (progress) => {
+		for (const [i, row] of rows.entries()) {
+			progress.report({ message: `${row.name} (${i + 1}/${rows.length})`, increment: 100 / rows.length });
+			try {
+				const result = await syncOne(vscode.Uri.parse(row.uri), { quiet: true });
+				if (result?.kind === 'synced') {
+					synced++;
+				}
+			} catch (error) {
+				failed.push(`${row.name}: ${error instanceof Error ? error.message : String(error)}`);
+			}
+		}
+	});
+	const summary = `Sync all: สำเร็จ ${synced}/${rows.length} ไฟล์`;
+	if (failed.length) {
+		vscode.window.showWarningMessage(`${summary} — ไม่สำเร็จ: ${failed.join(' · ')}`);
+	} else {
+		vscode.window.showInformationMessage(summary);
+	}
+}
 
 const CONTINUE_RESOLVE: ConflictChoice = {
 	label: '$(git-merge) 3. Continue in Resolve',
@@ -267,6 +341,8 @@ async function handleConflict(uri: vscode.Uri, action: ConflictAction) {
 		vscode.window.showInformationMessage(`Synced: ${result?.kind === 'synced' ? result.message ?? name : name}`);
 	} catch (error) {
 		showGitError(`${ACTION_NAMES[action]} ${name} ไม่สำเร็จ`, error);
+	} finally {
+		panel.refresh();
 	}
 }
 

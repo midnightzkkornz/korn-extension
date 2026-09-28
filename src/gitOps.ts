@@ -211,3 +211,53 @@ export async function startMerge(cwd: string): Promise<void> {
 		}
 	}
 }
+
+export type FileSyncState = 'dirty' | 'ahead' | 'synced' | 'never';
+
+export interface FileStatus {
+	state: FileSyncState; // dirty = changed, not synced · ahead = committed, not pushed
+	lastSync?: string; // ISO time of the newest commit of this file on the remote
+}
+
+/**
+ * Sync status of every .r.md file in the repo, with 3 git calls in total (not one per file).
+ * Keys are paths relative to the repo root with "/". Files not listed are "never" synced.
+ */
+export async function repoFileStates(cwd: string): Promise<Map<string, FileStatus>> {
+	const states = new Map<string, FileStatus>();
+	const noQuote = ['-c', 'core.quotepath=false']; // keep non-ASCII (e.g. Thai) names readable
+
+	// Last synced: newest commit on the remote that touched each file
+	if (await hasUpstream(cwd)) {
+		const log = await runGit([...noQuote, 'log', '@{upstream}', '--format=%x01%cI', '--name-only', '--', '*.r.md'], cwd);
+		let time = '';
+		for (const line of log.split('\n')) {
+			if (line.startsWith('\u0001')) {
+				time = line.slice(1);
+			} else if (line && !states.has(line)) {
+				states.set(line, { state: 'synced', lastSync: time });
+			}
+		}
+		// Committed but not pushed yet
+		const ahead = await runGit([...noQuote, 'log', '@{upstream}..HEAD', '--format=', '--name-only', '--', '*.r.md'], cwd);
+		for (const file of ahead.split('\n').filter(Boolean)) {
+			states.set(file, { ...states.get(file), state: 'ahead' });
+		}
+	}
+
+	// Changed or untracked in the working tree (-z: NUL separated, "XY path")
+	const status = await runGit(['status', '--porcelain', '-z', '--untracked-files=all', '--', '*.r.md'], cwd);
+	const entries = status.split('\0');
+	for (let i = 0; i < entries.length; i++) {
+		const entry = entries[i];
+		if (!entry) {
+			continue;
+		}
+		const code = entry.slice(0, 2);
+		states.set(entry.slice(3), { ...states.get(entry.slice(3)), state: 'dirty' });
+		if (code.startsWith('R') || code.startsWith('C')) {
+			i++; // a rename/copy is followed by its original path
+		}
+	}
+	return states;
+}
