@@ -1,0 +1,15 @@
+import { canSync, isPending, showsIncomingNote, stateLabel, syncTitle } from '../../webview/panel/labels';
+import type { FileRow } from '../../src/shared/protocol';
+let failed = 0;
+const eq = (name: string, a: unknown, b: unknown) => { const ok = JSON.stringify(a) === JSON.stringify(b); console.log(`${ok ? 'PASS' : 'FAIL'} ${name}`); if (!ok) { failed++; console.log('  got ', JSON.stringify(a)); console.log('  want', JSON.stringify(b)); } };
+const f = (over: Partial<FileRow>): FileRow => ({ uri: 'u', name: 'note.r.md', state: 'synced', incoming: false, unsaved: false, busy: false, ...over });
+eq('blocked label', stateLabel(f({ state: 'blocked', blockedBy: 'a.r.md' })), 'รอ push — ติด conflict ของ a.r.md');
+eq('blocked cannot sync', canSync(f({ state: 'blocked' })), false);
+eq('incoming unsaved label', stateLabel(f({ state: 'incoming', incoming: true, unsaved: true })), 'มีของใหม่ — เซฟแล้วจะรวมให้');
+eq('incoming title', syncTitle(f({ state: 'incoming' })), 'ดึงเวอร์ชันใหม่มาจาก remote');
+eq('pending: dirty/ahead/incoming', ['dirty', 'ahead', 'incoming', 'synced', 'blocked'].map((s) => isPending(f({ state: s as FileRow['state'] }))), [true, true, true, false, false]);
+eq('busy not pending', isPending(f({ state: 'dirty', busy: true })), false);
+eq('busy label', stateLabel(f({ state: 'dirty', busy: true })), 'Syncing…');
+eq('incoming note on dirty', showsIncomingNote(f({ state: 'dirty', incoming: true })), true);
+eq('no note on incoming row', showsIncomingNote(f({ state: 'incoming', incoming: true })), false);
+console.log(failed ? `\n${failed} FAILED` : '\nALL PASSED');

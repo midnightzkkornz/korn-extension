@@ -105,7 +105,8 @@
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./ && tsc -p webview && node esbuild.mjs",
-    "watch": "node esbuild.mjs --watch & tsc -watch -p ./"
+    "watch": "node esbuild.mjs --watch & tsc -watch -p ./",
+    "test": "node test/run.mjs"
   },
   "devDependencies": {
     "@codemirror/lang-markdown": "^6.5.2",
@@ -119,6 +120,7 @@
     "codemirror": "^6.0.2",
     "diff": "^9.0.0",
     "esbuild": "^0.28.2",
+    "preact": "^10.29.8",
     "typescript": "^5.6.0"
   }
 }

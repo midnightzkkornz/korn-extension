@@ -1,12 +1,8 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 
-export interface ConflictItem {
-	uri: string;
-	name: string;
-	busy: boolean; // an action is running for this file: other choices wait
-	resolving: boolean; // "Resolve in Korn" started (merge in progress)
-}
+import type { ConflictItem } from '../shared/protocol';
+export type { ConflictItem };
 
 // Files whose last Sync hit a real conflict. Shown in the side panel until resolved.
 export class ConflictStore {

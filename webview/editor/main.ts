@@ -12,8 +12,8 @@ import { gfm } from '@milkdown/kit/preset/gfm';
 import { replaceAll } from '@milkdown/kit/utils';
 import '@milkdown/kit/prose/view/style/prosemirror.css';
 import './style.css';
-import type { Choice } from './conflictParser';
-import { ResolveView } from './resolve';
+import type { Choice } from './resolve/conflictParser';
+import { ResolveView } from './resolve/resolve';
 
 type Mode = 'view' | 'text' | 'preview' | 'editor' | 'resolve';
 const MODES: Mode[] = ['view', 'text', 'preview', 'editor', 'resolve'];

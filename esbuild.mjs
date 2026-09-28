@@ -1,12 +1,19 @@
 import * as esbuild from 'esbuild';
 
-// Bundles the webview UI (CodeMirror + Milkdown) into out/webview.js + out/webview.css
+// Bundles the webview UIs:
+// - out/editor.js + .css: the Korn editor (CodeMirror + Milkdown)
+// - out/panel.js + .css:   the Korn Sync side panel (Preact / TSX)
 const options = {
-	entryPoints: ['webview/main.ts'],
+	entryPoints: {
+		editor: 'webview/editor/main.ts',
+		panel: 'webview/panel/main.tsx',
+	},
 	bundle: true,
 	format: 'iife',
 	target: 'es2022',
-	outfile: 'out/webview.js',
+	outdir: 'out',
+	jsx: 'automatic',
+	jsxImportSource: 'preact',
 	minify: !process.argv.includes('--watch'),
 	sourcemap: process.argv.includes('--watch'),
 	logLevel: 'info',

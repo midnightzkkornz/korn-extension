@@ -1,40 +1,18 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import * as ops from './gitOps';
+import type { ConflictAction } from '../shared/protocol';
+import { getGitApi, push, Repository } from './api';
+import * as ops from './ops';
 
-// Minimal typings for VS Code's built-in Git extension API (extensions/git/src/api/git.d.ts)
-interface Branch {
-	readonly name?: string;
-	readonly upstream?: { readonly remote: string; readonly name: string };
-}
-interface Repository {
-	readonly rootUri: vscode.Uri;
-	readonly state: { readonly HEAD: Branch | undefined };
-	fetch(): Promise<void>;
-	push(remoteName?: string, branchName?: string, setUpstream?: boolean): Promise<void>;
-	status(): Promise<void>;
-}
-interface GitAPI {
-	getRepository(uri: vscode.Uri): Repository | null;
-}
+export type { ConflictAction };
+
+// Sync, conflicts and pull for one .r.md: ops.ts does the git work, api.ts does fetch/push
 
 export type SyncOutcome =
 	| { kind: 'synced'; committed: boolean; message?: string; time: Date }
 	| { kind: 'conflict'; file: string }
 	// nothing to resolve any more (already handled, or the remote has nothing new)
 	| { kind: 'noConflict' };
-
-// cancel = undo "Resolve in Korn" and go back to choosing
-export type ConflictAction = 'keepMine' | 'saveCopy' | 'resolve' | 'cancel';
-
-async function getGitApi(): Promise<GitAPI> {
-	const ext = vscode.extensions.getExtension<{ getAPI(version: 1): GitAPI }>('vscode.git');
-	if (!ext) {
-		throw new Error('ไม่พบ Git extension ของ VS Code');
-	}
-	const exports = ext.isActive ? ext.exports : await ext.activate();
-	return exports.getAPI(1);
-}
 
 async function openRepo(uri: vscode.Uri): Promise<{ repo: Repository; cwd: string; file: string }> {
 	const document = vscode.workspace.textDocuments.find((d) => d.uri.toString() === uri.toString());
@@ -47,18 +25,6 @@ async function openRepo(uri: vscode.Uri): Promise<{ repo: Repository; cwd: strin
 	}
 	const cwd = repo.rootUri.fsPath;
 	return { repo, cwd, file: path.relative(cwd, uri.fsPath) };
-}
-
-// Push through VS Code's Git extension, so it uses the same login/credentials as VS Code
-async function push(repo: Repository) {
-	await repo.status(); // pick up commits made with the git CLI
-	const head = repo.state.HEAD;
-	if (head?.upstream) {
-		await repo.push();
-	} else {
-		await repo.push('origin', head?.name, true);
-	}
-	await repo.status();
 }
 
 // Fetch through VS Code's Git extension (same login as VS Code); silent if offline

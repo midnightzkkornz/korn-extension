@@ -4,6 +4,8 @@
     "moduleResolution": "bundler",
     "target": "ES2022",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "jsxImportSource": "preact",
     "strict": true,
     "noEmit": true,
     "skipLibCheck": true

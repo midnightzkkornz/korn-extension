@@ -1,10 +1,10 @@
 import { readFileSync } from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import type { ConflictStore } from './conflicts';
+import type { ConflictStore } from '../state/conflicts';
 import { listRmdFiles } from './fileStatus';
-import { fetchRepo, getMergeState, pullRepo } from './gitSync';
-import { log } from './log';
+import { fetchRepo, getMergeState, pullRepo } from '../git/sync';
+import { log } from '../shared/log';
 import { decidePull } from './pullPolicy';
 
 const SAVE_DELAY_MS = 2000; // wait for a burst of saves to settle

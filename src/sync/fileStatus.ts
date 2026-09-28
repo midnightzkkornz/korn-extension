@@ -1,25 +1,10 @@
 import { realpathSync } from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import type { ConflictStore } from './conflicts';
-import * as ops from './gitOps';
-
-// blocked = committed, but can't be pushed until a conflict in the same repo is handled
-// (git pushes the whole branch, and the branch can't take the remote changes yet)
-// incoming = unchanged here, but the remote has a newer version (as of the last fetch)
-export type FileRowState = ops.FileSyncState | 'conflict' | 'blocked' | 'incoming' | 'nogit';
-
-export interface FileRow {
-	uri: string;
-	name: string;
-	root?: string; // git repo root
-	state: FileRowState;
-	lastSync?: string;
-	blockedBy?: string; // the conflicted file holding this one back
-	incoming: boolean; // remote has a newer version (also set on dirty/ahead files)
-	unsaved: boolean; // open in an editor with changes not saved yet
-	busy: boolean;
-}
+import type { ConflictStore } from '../state/conflicts';
+import * as ops from '../git/ops';
+import type { FileRow, FileRowState } from '../shared/protocol';
+export type { FileRow, FileRowState };
 
 // Sort order in the side panel: what needs attention first
 const ORDER: Record<FileRowState, number> = {

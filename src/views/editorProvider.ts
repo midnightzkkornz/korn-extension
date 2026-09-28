@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
-import type { ConflictStore } from './conflicts';
-import { getLastSyncTime, getMergeState, SyncOutcome } from './gitSync';
-import { getNonce, SYNC_ICON } from './util';
+import type { ConflictStore } from '../state/conflicts';
+import { getLastSyncTime, getMergeState, SyncOutcome } from '../git/sync';
+import { getNonce, SYNC_ICON } from '../shared/util';
 
 // Messages from the webview (see webview/main.ts)
 type EditorMessage =
@@ -16,7 +16,7 @@ type EditorMessage =
 	| { type: 'cancelResolve' };
 
 // Korn editor for *.r.md: one tab with an always-visible toolbar and 4 modes
-// (Korn / Text / Preview / Editor). The UI lives in webview/ and is bundled into out/webview.js.
+// (Korn / Text / Preview / Editor). The UI lives in webview/editor/ and is bundled into out/editor.js.
 export class RmdEditorProvider implements vscode.CustomTextEditorProvider {
 	public static readonly viewType = 'korn.rmdEditor';
 
@@ -173,8 +173,8 @@ export class RmdEditorProvider implements vscode.CustomTextEditorProvider {
 	private getHtml(webview: vscode.Webview, document: vscode.TextDocument): string {
 		const nonce = getNonce();
 		const fileName = escapeHtml(vscode.workspace.asRelativePath(document.uri));
-		const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'out', 'webview.js'));
-		const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'out', 'webview.css'));
+		const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'out', 'editor.js'));
+		const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'out', 'editor.css'));
 		// Same stylesheets as VS Code's own Markdown Preview, so rendered markdown looks identical
 		const media = markdownMediaUri();
 		const markdownStyles = media

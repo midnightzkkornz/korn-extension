@@ -1,0 +1,13 @@
+import { decidePull, PullRow } from '../../src/sync/pullPolicy';
+let failed = 0;
+const eq = (name: string, a: unknown, b: unknown) => { const ok = JSON.stringify(a) === JSON.stringify(b); console.log(`${ok ? 'PASS' : 'FAIL'} ${name}`); if (!ok) { failed++; console.log('  got ', JSON.stringify(a)); console.log('  want', JSON.stringify(b)); } };
+const r = (name: string, over: Partial<PullRow> = {}): PullRow => ({ name, state: 'synced', incoming: false, unsaved: false, busy: false, ...over });
+eq('nothing new', decidePull([r('a'), r('b')]), { pull: false, reason: 'nothing new' });
+eq('incoming, clean -> pull', decidePull([r('a', { state: 'incoming', incoming: true }), r('b')]), { pull: true });
+eq('incoming + unsaved same file -> wait', decidePull([r('a', { state: 'incoming', incoming: true, unsaved: true })]), { pull: false, reason: 'unsaved', file: 'a' });
+eq('unsaved OTHER file -> still pull', decidePull([r('a', { state: 'incoming', incoming: true }), r('b', { unsaved: true })]), { pull: true });
+eq('conflict in repo -> wait', decidePull([r('a', { incoming: true, state: 'incoming' }), r('b', { state: 'conflict' })]), { pull: false, reason: 'conflict', file: 'b' });
+eq('blocked in repo -> wait', decidePull([r('a', { incoming: true, state: 'incoming' }), r('b', { state: 'blocked' })]), { pull: false, reason: 'blocked', file: 'b' });
+eq('busy -> retry later', decidePull([r('a', { incoming: true, state: 'incoming' }), r('b', { busy: true })]), { pull: false, reason: 'busy', file: 'b' });
+eq('dirty+incoming on disk -> pull decides (gitOps skips safely)', decidePull([r('a', { state: 'dirty', incoming: true })]), { pull: true });
+console.log(failed ? `\n${failed} FAILED` : '\nALL PASSED');
