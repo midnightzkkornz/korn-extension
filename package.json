@@ -85,6 +85,21 @@
         "command": "korn.openKorn",
         "category": "Korn",
         "title": "Korn View"
+      },
+      {
+        "command": "korn.showMode",
+        "category": "Korn",
+        "title": "Show Mode…"
+      },
+      {
+        "command": "korn.insertDateTime",
+        "category": "Korn",
+        "title": "Insert Date & Time"
+      },
+      {
+        "command": "korn.openNote",
+        "category": "Korn",
+        "title": "Open Note…"
       }
     ],
     "menus": {
@@ -108,6 +123,67 @@
         }
       ]
     },
+    "keybindings": [
+      {
+        "command": "korn.showMode",
+        "args": "view",
+        "key": "ctrl+alt+1",
+        "mac": "ctrl+cmd+1",
+        "when": "activeCustomEditorId == 'korn.rmdEditor'"
+      },
+      {
+        "command": "korn.showMode",
+        "args": "text",
+        "key": "ctrl+alt+2",
+        "mac": "ctrl+cmd+2",
+        "when": "activeCustomEditorId == 'korn.rmdEditor'"
+      },
+      {
+        "command": "korn.showMode",
+        "args": "preview",
+        "key": "ctrl+alt+3",
+        "mac": "ctrl+cmd+3",
+        "when": "activeCustomEditorId == 'korn.rmdEditor'"
+      },
+      {
+        "command": "korn.showMode",
+        "args": "editor",
+        "key": "ctrl+alt+4",
+        "mac": "ctrl+cmd+4",
+        "when": "activeCustomEditorId == 'korn.rmdEditor'"
+      },
+      {
+        "command": "korn.showMode",
+        "args": "next",
+        "key": "ctrl+alt+m",
+        "mac": "ctrl+cmd+m",
+        "when": "activeCustomEditorId == 'korn.rmdEditor'"
+      },
+      {
+        "command": "korn.insertDateTime",
+        "key": "ctrl+alt+t",
+        "linux": "ctrl+alt+d",
+        "mac": "ctrl+cmd+t",
+        "when": "resourceFilename =~ /\\.r\\.md$/"
+      },
+      {
+        "command": "korn.openNote",
+        "key": "ctrl+alt+o",
+        "mac": "ctrl+cmd+o",
+        "when": "workspaceFolderCount > 0"
+      },
+      {
+        "command": "korn.newFile",
+        "key": "ctrl+alt+n",
+        "mac": "ctrl+cmd+n",
+        "when": "workspaceFolderCount > 0"
+      },
+      {
+        "command": "workbench.view.extension.korn",
+        "key": "ctrl+alt+k",
+        "mac": "ctrl+cmd+k"
+      }
+    ],
     "configuration": {
       "title": "Korn",
       "properties": {

@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { registerConflictCommands, notifyConflict } from './commands/conflict';
 import { ensureRightEditor, registerEditorCommands } from './commands/editors';
 import { registerFileCommands } from './commands/files';
+import { registerShortcutCommands } from './commands/shortcuts';
 import { registerSyncCommands, syncOne } from './commands/sync';
 import { ctx } from './context';
 import { ConflictStore } from './state/conflicts';
@@ -50,6 +51,7 @@ export function activate(context: vscode.ExtensionContext) {
 		...registerSyncCommands(),
 		...registerConflictCommands(),
 		...registerFileCommands(),
+		...registerShortcutCommands(),
 		...registerEditorCommands()
 	);
 

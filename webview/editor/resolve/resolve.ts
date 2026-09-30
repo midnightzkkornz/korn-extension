@@ -55,6 +55,8 @@ export class ResolveView {
 	private choices: (Choice | undefined)[] = [];
 	private key = '';
 	private editing = -1;
+	private current = 0; // conflict the keyboard acts on (outlined)
+	private scrollToCurrent = false; // after a key press, bring the current conflict into view
 	private rendered = new Set<number>(); // conflicts shown as rendered markdown instead of raw
 	private renderRequest = 0;
 	private readonly htmlCache = new Map<string, string>();
@@ -83,9 +85,13 @@ export class ResolveView {
 			this.editing = -1;
 			this.rendered.clear();
 			this.choices = this.host.loadChoices(key) ?? [];
+			this.current = -1;
 		}
 		this.segments = segments;
 		this.conflicts = segments.filter((s): s is Conflict => s.kind === 'conflict');
+		if (this.current < 0 || this.current >= this.conflicts.length) {
+			this.current = Math.max(0, this.nextUnresolved(-1));
+		}
 		this.render();
 		return 'conflicts';
 	}
@@ -101,8 +107,94 @@ export class ResolveView {
 	private setChoice(index: number, choice: Choice | undefined) {
 		this.choices[index] = choice;
 		this.editing = -1;
+		this.current = index;
+		if (choice) {
+			// move on to the next conflict that still needs a choice
+			const next = this.nextUnresolved(index);
+			if (next >= 0) {
+				this.current = next;
+			}
+		}
 		this.host.saveChoices(this.key, this.choices);
 		this.render();
+	}
+
+	/** First unresolved conflict after `index`, wrapping around; -1 when all are resolved */
+	private nextUnresolved(index: number): number {
+		for (let step = 1; step <= this.conflicts.length; step++) {
+			const i = (index + step) % this.conflicts.length;
+			if (!this.choices[i]) {
+				return i;
+			}
+		}
+		return -1;
+	}
+
+	/**
+	 * Keyboard shortcuts while the Resolve tab is shown. Returns true when the key was used.
+	 * ↓ ↑ (or J K) move between conflicts · M mine · T theirs · B both (mine first) · ⇧B both (theirs first)
+	 * E edit · U undo · ⌘/Ctrl+Enter Finish & Sync. In the edit box: ⌘/Ctrl+Enter use the text · Esc cancel.
+	 */
+	handleKey(event: KeyboardEvent): boolean {
+		if (this.conflicts.length === 0) {
+			return false;
+		}
+		const mod = event.metaKey || event.ctrlKey;
+		this.scrollToCurrent = true;
+		if (this.editing >= 0 && (event.target as HTMLElement | null)?.tagName === 'TEXTAREA') {
+			const area = event.target as HTMLTextAreaElement;
+			if (mod && event.key === 'Enter') {
+				this.setChoice(this.editing, { type: 'edit', text: area.value });
+				return true;
+			}
+			if (event.key === 'Escape') {
+				this.editing = -1;
+				this.render();
+				return true;
+			}
+			return false; // typing in the edit box
+		}
+		if (mod && event.key === 'Enter') {
+			if (this.resolvedCount === this.conflicts.length) {
+				this.finish();
+			}
+			return true;
+		}
+		if (mod || event.altKey) {
+			return false; // leave other shortcuts to VS Code
+		}
+
+		// event.code = physical key, so it also works with the Thai keyboard layout
+		const i = this.current;
+		switch (event.code) {
+			case 'ArrowDown':
+			case 'KeyJ':
+				this.current = Math.min(this.conflicts.length - 1, i + 1);
+				break;
+			case 'ArrowUp':
+			case 'KeyK':
+				this.current = Math.max(0, i - 1);
+				break;
+			case 'KeyM':
+				this.setChoice(i, { type: 'mine' });
+				return true;
+			case 'KeyT':
+				this.setChoice(i, { type: 'theirs' });
+				return true;
+			case 'KeyB':
+				this.setChoice(i, { type: event.shiftKey ? 'theirsFirst' : 'mineFirst' });
+				return true;
+			case 'KeyE':
+				this.editing = i;
+				break;
+			case 'KeyU':
+				this.setChoice(i, undefined);
+				return true;
+			default:
+				return false;
+		}
+		this.render();
+		return true;
 	}
 
 	private get resolvedCount(): number {
@@ -134,6 +226,9 @@ export class ResolveView {
 		finish.title = done ? 'Write the result, conclude the merge and push' : 'Resolve every conflict first';
 		header.append(cancel, openText, finish);
 		this.root.append(header);
+		this.root.append(
+			el('div', 'resolve-keys', '↑↓ เลือก conflict · M ของเรา · T ของอีกคน · B ทั้งคู่ (⇧B อีกคนก่อน) · E แก้เอง · U ยกเลิก · ⌘/Ctrl+Enter Finish & Sync')
+		);
 
 		const body = el('div', 'resolve-body');
 		let conflictIndex = 0;
@@ -158,10 +253,22 @@ export class ResolveView {
 
 		this.root.append(body);
 		this.requestRender(pending);
+		if (this.scrollToCurrent) {
+			this.scrollToCurrent = false;
+			this.root.querySelector('.conflict-card.current')?.scrollIntoView({ block: 'nearest' });
+		}
 	}
 
 	private renderConflict(conflict: Conflict, index: number, pending: string[]): HTMLElement {
 		const card = el('div', 'conflict-card');
+		card.classList.toggle('current', index === this.current);
+		card.addEventListener('mousedown', () => {
+			// clicking a card makes it the one the keyboard acts on (without re-rendering under the click)
+			this.current = index;
+			for (const other of this.root.querySelectorAll('.conflict-card')) {
+				other.classList.toggle('current', other === card);
+			}
+		});
 		const choice = this.choices[index];
 
 		const title = el('div', 'conflict-title');

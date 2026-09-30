@@ -20,6 +20,19 @@ type EditorMessage =
 export class RmdEditorProvider implements vscode.CustomTextEditorProvider {
 	public static readonly viewType = 'korn.rmdEditor';
 
+	// The Korn tab that has focus, for keyboard shortcuts (korn.showMode, korn.insertDateTime)
+	private static activePanel: vscode.WebviewPanel | undefined;
+
+	/** Send a message to the focused Korn tab. Returns false when no Korn tab is active. */
+	static postToActive(message: unknown): boolean {
+		const panel = RmdEditorProvider.activePanel;
+		if (!panel?.active) {
+			return false;
+		}
+		panel.webview.postMessage(message);
+		return true;
+	}
+
 	constructor(
 		private readonly extensionUri: vscode.Uri,
 		private readonly conflicts: ConflictStore
@@ -38,6 +51,15 @@ export class RmdEditorProvider implements vscode.CustomTextEditorProvider {
 			],
 		};
 		panel.webview.html = this.getHtml(panel.webview, document);
+
+		if (panel.active) {
+			RmdEditorProvider.activePanel = panel;
+		}
+		const viewStateSub = panel.onDidChangeViewState(() => {
+			if (panel.active) {
+				RmdEditorProvider.activePanel = panel;
+			}
+		});
 
 		// Edits from the webview are applied in order. `ackSeq` tells the webview which of its
 		// edits are already in the document, so it never gets overwritten with older text mid-typing.
@@ -119,6 +141,10 @@ export class RmdEditorProvider implements vscode.CustomTextEditorProvider {
 			changeSub.dispose();
 			conflictSub.dispose();
 			saveSub.dispose();
+			viewStateSub.dispose();
+			if (RmdEditorProvider.activePanel === panel) {
+				RmdEditorProvider.activePanel = undefined;
+			}
 		});
 
 		panel.webview.onDidReceiveMessage(async (message: EditorMessage) => {

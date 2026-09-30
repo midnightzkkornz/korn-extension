@@ -5,6 +5,9 @@
 - Images with relative paths (`![](img.png)`) now show in View, Preview, Editor and the Resolve preview
 - Editor (WYSIWYG) mode no longer restyles the whole file: only the lines you edit change, the rest keeps its exact formatting (list bullets, `__bold__`, setext headings, blank lines…), and edited list items use the file's bullet style
 - `#heading` links scroll within the page
+- Keyboard shortcuts: switch mode (`⌃⌘1`–`4`, `⌃⌘M`), insert date & time (`⌃⌘T`), open a note (`⌃⌘O`), new note (`⌃⌘N`), show the panel (`⌃⌘K`)
+- Resolve tab keys: `↑` `↓` pick a conflict, `M` / `T` / `B` / `⇧B` / `E` / `U` choose, `⌘Enter` Finish & Sync
+- New commands: `Korn: Show Mode…`, `Korn: Insert Date & Time`, `Korn: Open Note…`
 
 ## 0.1.0
 

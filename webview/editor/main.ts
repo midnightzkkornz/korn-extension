@@ -25,6 +25,8 @@ type HostMessage =
 	| { type: 'init' | 'update'; text: string; html: string; ackSeq: number }
 	| { type: 'syncState'; state: SyncState; time?: string }
 	| { type: 'syncTarget'; title: string } // "Sync ไป origin/main" (Sync button tooltip)
+	| { type: 'setMode'; mode: Mode | 'next' } // keyboard shortcuts (src/commands/shortcuts.ts)
+	| { type: 'insertText'; text: string }
 	| { type: 'renderedMany'; requestId: number; texts: string[]; htmls: string[] };
 
 // conflict = found, nothing chosen yet · resolving = "Resolve in Korn" chosen · merging = resolved, ready to push
@@ -218,6 +220,31 @@ syncButton.addEventListener('click', () => {
 	vscode.postMessage({ type: 'sync' });
 });
 
+// ---- Keyboard shortcuts (sent by the extension) ----
+const CYCLE: Mode[] = ['view', 'text', 'preview', 'editor'];
+function showModeFromShortcut(next: Mode | 'next') {
+	if (next === 'next') {
+		next = CYCLE[(CYCLE.indexOf(mode) + 1) % CYCLE.length]; // from Resolve: back to View
+	}
+	if (MODES.includes(next) && (next !== 'resolve' || !resolveTab.hidden)) {
+		setMode(next);
+	}
+}
+
+// Type text at the cursor of the Text / Preview / Editor pane (View and Resolve have no cursor)
+function insertAtCursor(text: string) {
+	if (mode === 'text' || mode === 'preview') {
+		codeMirror.dispatch(codeMirror.state.replaceSelection(text));
+		codeMirror.focus();
+	} else if (mode === 'editor' && milkdown) {
+		milkdown.action((ctx) => {
+			const view = ctx.get(editorViewCtx);
+			view.focus(); // markdownUpdated only forwards edits while the editor has focus
+			view.dispatch(view.state.tr.insertText(text));
+		});
+	}
+}
+
 // ---- Sync status in the toolbar ----
 const statusEl = document.getElementById('status')!;
 // "Conflict — เลือกวิธีจัดการ" is clickable: shows the choices again after pressing Esc
@@ -259,6 +286,14 @@ window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
 		syncButton.title = message.title;
 		return;
 	}
+	if (message.type === 'setMode') {
+		showModeFromShortcut(message.mode);
+		return;
+	}
+	if (message.type === 'insertText') {
+		insertAtCursor(message.text);
+		return;
+	}
 	if (message.type === 'renderedMany') {
 		resolveView.onRendered(message.requestId, message.texts, message.htmls);
 		return;
@@ -279,6 +314,13 @@ window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
 		setMode(mode);
 	}
 	refreshResolve();
+});
+
+// Resolve tab: keys to pick mine / theirs / both without the mouse (see ResolveView.handleKey)
+document.addEventListener('keydown', (event) => {
+	if (mode === 'resolve' && resolveView.handleKey(event)) {
+		event.preventDefault();
+	}
 });
 
 // <base href> points at the file's folder (for relative images), which would also turn

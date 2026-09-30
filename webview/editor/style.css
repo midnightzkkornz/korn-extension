@@ -271,6 +271,14 @@ body:is(.vscode-light, .vscode-high-contrast-light) #text {
 	overflow: hidden;
 }
 .conflict-card.resolved { border-color: var(--vscode-charts-green); }
+/* The conflict the keyboard acts on; scroll-margin keeps it clear of the sticky header */
+.conflict-card.current { outline: 2px solid var(--vscode-focusBorder); outline-offset: 1px; scroll-margin: 64px 0 16px; }
+.resolve-keys {
+	padding: 4px 26px;
+	font-size: 0.9em;
+	color: var(--vscode-descriptionForeground);
+	border-bottom: 1px solid var(--vscode-panel-border);
+}
 .conflict-title {
 	display: flex;
 	align-items: center;

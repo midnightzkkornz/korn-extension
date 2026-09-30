@@ -50,7 +50,26 @@ Markdown notes that sync themselves through Git. Open a `.r.md` file and you get
 | `Korn: New .r.md File` | Create a note in the workspace |
 | `Korn: Korn View` | Reopen the file in the Korn editor |
 
+| `Korn: Show Mode…` | Switch the Korn tab to View / Text / Preview / Editor |
+| `Korn: Insert Date & Time` | Type `YYYY-MM-DD HH:mm` at the cursor |
+| `Korn: Open Note…` | Search and open any `.r.md` in the workspace |
+
 What auto-sync did and why it skipped something is in **Output → Korn** (the **log** link in the panel).
+
+## Keyboard shortcuts
+
+| Mac | Windows / Linux | Action |
+|---|---|---|
+| `⌃⌘1` `⌃⌘2` `⌃⌘3` `⌃⌘4` | `Ctrl+Alt+1` … `4` | View / Text / Preview / Editor |
+| `⌃⌘M` | `Ctrl+Alt+M` | Next mode |
+| `⌃⌘T` | `Ctrl+Alt+T` (Linux `Ctrl+Alt+D`) | Insert date & time (Text, Preview and Editor modes) |
+| `⌃⌘O` | `Ctrl+Alt+O` | Open a note |
+| `⌃⌘N` | `Ctrl+Alt+N` | New `.r.md` file |
+| `⌃⌘K` | `Ctrl+Alt+K` | Show the Korn Sync panel |
+
+In the **Resolve** tab: `↑` `↓` (or `J` `K`) pick a conflict · `M` mine · `T` theirs · `B` both, mine first · `⇧B` both, theirs first · `E` edit · `U` undo · `⌘Enter` / `Ctrl+Enter` Finish & Sync. In the edit box, `⌘Enter` / `Ctrl+Enter` uses the text and `Esc` cancels.
+
+Change any of them in **Keyboard Shortcuts** (`⌘K ⌘S`), search "Korn".
 
 ## Known limitations
 
@@ -104,6 +123,21 @@ What auto-sync did and why it skipped something is in **Output → Korn** (the *
 - `korn.autoSync.intervalMinutes`: ทุก N นาทีส่งของเราและดึงของคนอื่น (`0` = ปิด)
 
 ดูว่า auto-sync ทำอะไรไปบ้าง และทำไมถึงข้าม ได้ที่ **Output → Korn** (ลิงก์ **log** ในแผง)
+
+### คีย์ลัด
+
+| Mac | Windows / Linux | ทำอะไร |
+|---|---|---|
+| `⌃⌘1` `⌃⌘2` `⌃⌘3` `⌃⌘4` | `Ctrl+Alt+1` … `4` | ไปโหมด View / Text / Preview / Editor |
+| `⌃⌘M` | `Ctrl+Alt+M` | ไปโหมดถัดไป |
+| `⌃⌘T` | `Ctrl+Alt+T` (Linux `Ctrl+Alt+D`) | ใส่วันเวลาตรงเคอร์เซอร์ (โหมด Text, Preview, Editor) |
+| `⌃⌘O` | `Ctrl+Alt+O` | ค้นหาและเปิดโน้ต |
+| `⌃⌘N` | `Ctrl+Alt+N` | สร้างไฟล์ `.r.md` ใหม่ |
+| `⌃⌘K` | `Ctrl+Alt+K` | เปิดแผง Korn Sync |
+
+ในแท็บ **Resolve**: `↑` `↓` (หรือ `J` `K`) เลือก conflict · `M` ของเรา · `T` ของอีกคน · `B` ทั้งคู่ (ของเราก่อน) · `⇧B` ทั้งคู่ (ของอีกคนก่อน) · `E` แก้เอง · `U` ยกเลิกที่เลือก · `⌘Enter` / `Ctrl+Enter` Finish & Sync ในช่องแก้เอง `⌘Enter` / `Ctrl+Enter` ใช้ข้อความนั้น และ `Esc` ยกเลิก ใช้ได้แม้คีย์บอร์ดเป็นภาษาไทย
+
+เปลี่ยนคีย์ได้ที่ **Keyboard Shortcuts** (`⌘K ⌘S`) ค้นหา "Korn"
 
 ### ข้อจำกัดตอนนี้
 
