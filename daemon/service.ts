@@ -1,10 +1,10 @@
 import { execFileSync } from 'child_process';
-import { copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { homedir } from 'os';
 import * as path from 'path';
 import { stateDir } from './config';
 
-// `korn start` / `korn stop`: run the daemon in the background at login, without brew services.
+// `korn start` / `korn stop`: run the daemon in the background at login.
 // macOS: a LaunchAgent · Linux: a systemd user unit.
 // korn.js is copied to ~/.local/share/korn/ first, so the service doesn't depend on where it was
 // started from (the VS Code extension's folder changes with every version).
@@ -152,6 +152,23 @@ export function stopService(): boolean {
 		return existed;
 	}
 	return false;
+}
+
+/** The program the installed service runs (node, or VS Code's runtime); undefined = no service */
+export function serviceRuntime(): string | undefined {
+	try {
+		if (process.platform === 'darwin') {
+			const plist = readFileSync(plistPath(), 'utf8');
+			const first = plist.match(/<key>ProgramArguments<\/key>\s*<array>\s*<string>([^<]*)<\/string>/);
+			return first?.[1].replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+		}
+		if (process.platform === 'linux') {
+			return readFileSync(unitPath(), 'utf8').match(/^ExecStart="((?:[^"\\]|\\.)*)"/m)?.[1].replace(/\\(.)/g, '$1');
+		}
+	} catch {
+		// not installed
+	}
+	return undefined;
 }
 
 /** Is the background service set up (it starts again at login)? */

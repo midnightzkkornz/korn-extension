@@ -1,9 +1,10 @@
-# Publishes korn (the background sync CLI) to Homebrew when a tag like korn-v0.1.0 is pushed:
-# test → build the tarball → GitHub Release → update Formula/korn.rb in midnightzkkornz/homebrew-tap.
+# Releases korn (the background sync CLI) when a tag like korn-v0.1.0 is pushed:
+# test → publish korn-sync to npm (npm, pnpm, yarn, bun install it) → write Formula/korn.rb (Homebrew,
+# from the npm tarball) and commit it to main.
 #
 # One-time setup (see docs/daemon.md "Releasing"):
-# - a public repo midnightzkkornz/homebrew-tap
-# - secret HOMEBREW_TAP_TOKEN: a fine-grained token with Contents: read and write on homebrew-tap
+# - this repo is public (brew tap clones it; npm provenance needs it)
+# - secret NPM_TOKEN: an npm Granular Access Token that can publish korn-sync
 #
 # Release: bump daemon/version.ts, commit, then `make korn-tag` prints the tag commands.
 name: korn release
@@ -13,11 +14,12 @@ on:
     tags: ['korn-v*']
 
 permissions:
-  contents: write # create the GitHub Release
+  contents: write # commit Formula/korn.rb to main
+  id-token: write # npm provenance
 
 jobs:
   release:
-    runs-on: macos-latest # the tests use macOS tools (osacompile); the tarball is plain JavaScript
+    runs-on: macos-latest # the tests use macOS tools (osacompile)
     steps:
       - uses: actions/checkout@v4
 
@@ -25,6 +27,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          registry-url: https://registry.npmjs.org
 
       - name: Check the tag matches daemon/version.ts
         run: |
@@ -43,33 +46,43 @@ jobs:
           git config --global user.name "ci"
           npm test
 
-      - name: Build the tarball and formula
-        run: make daemon-release
-
-      - name: GitHub Release
+      - name: Publish korn-sync to npm
         env:
-          GH_TOKEN: ${{ github.token }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          gh release create "$GITHUB_REF_NAME" "dist/korn-$VERSION.tar.gz" \
-            --title "korn $VERSION" \
-            --notes "Background sync for Korn Markdown Sync. Install: \`brew install midnightzkkornz/tap/korn\` then \`korn setup\`."
-
-      - name: Update the Homebrew tap
-        env:
-          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-        run: |
-          if [ -z "$TAP_TOKEN" ]; then
-            echo "::error::secret HOMEBREW_TAP_TOKEN is not set (see docs/daemon.md, Releasing)"
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "::error::secret NPM_TOKEN is not set (see docs/daemon.md, Releasing)"
             exit 1
           fi
-          git clone "https://x-access-token:${TAP_TOKEN}@github.com/midnightzkkornz/homebrew-tap.git" tap
-          mkdir -p tap/Formula
-          cp dist/korn.rb tap/Formula/korn.rb
-          cd tap
+          make npm-build
+          cd dist/npm
+          npm publish --access public --provenance
+
+      - name: Homebrew formula from the published tarball
+        run: |
+          TGZ="https://registry.npmjs.org/korn-sync/-/korn-sync-$VERSION.tgz"
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            curl -fsSL -o "dist/korn-sync-$VERSION.tgz" "$TGZ" && break
+            echo "waiting for npm to serve $TGZ ($i)"; sleep 10
+          done
+          SHA=$(shasum -a 256 "dist/korn-sync-$VERSION.tgz" | cut -d' ' -f1)
+          node packaging/homebrew/render-formula.mjs "$VERSION" "$SHA" > dist/korn.rb
+          ruby -c dist/korn.rb
+
+      - name: Commit Formula/korn.rb to main
+        run: |
+          git fetch origin main
+          git checkout -B main origin/main
+          mkdir -p Formula
+          cp dist/korn.rb Formula/korn.rb
           git add Formula/korn.rb
           if git diff --cached --quiet; then
             echo "formula unchanged"
             exit 0
           fi
-          git commit -m "korn $VERSION"
-          git push
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -m "korn $VERSION: Homebrew formula"
+          if ! git push origin main; then
+            echo "::error::couldn't push to main (branch protection?). Allow GitHub Actions to push, or commit dist/korn.rb as Formula/korn.rb by hand"
+            exit 1
+          fi

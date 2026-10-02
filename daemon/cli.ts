@@ -221,7 +221,7 @@ async function daemon(): Promise<number> {
 		console.error(`korn daemon ทำงานอยู่แล้ว (pid ${running})`);
 		return 1;
 	}
-	writePid();
+	writePid(VERSION);
 	let config: Config | undefined;
 	const reload = () => {
 		try {

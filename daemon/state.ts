@@ -109,9 +109,19 @@ function pidFile(): string {
 	return path.join(stateDir(), 'daemon.pid');
 }
 
-export function writePid() {
+/** pid + the version of korn the daemon runs (`korn` compares it with the installed one after an upgrade) */
+export function writePid(version: string) {
 	mkdirSync(stateDir(), { recursive: true });
 	writeFileSync(pidFile(), String(process.pid));
+	writeFileSync(path.join(stateDir(), 'daemon.version'), version);
+}
+
+export function daemonVersion(): string | undefined {
+	try {
+		return readFileSync(path.join(stateDir(), 'daemon.version'), 'utf8').trim();
+	} catch {
+		return undefined;
+	}
 }
 
 export function clearPid() {

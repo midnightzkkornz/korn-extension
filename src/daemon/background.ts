@@ -8,11 +8,12 @@ import type { BackgroundRepo, BackgroundView, ConflictPreset, FrequencyPreset } 
 import { stateDir } from '../shared/daemonBridge';
 
 // "Background sync" in the Korn panel: runs the korn CLI bundled with the extension (out/korn.js,
-// built from daemon/) so the daemon can be turned on and set up without a terminal, brew or yaml.
+// built from daemon/) so the daemon can be turned on and set up without a terminal, an install or yaml.
 
 // The parts of `korn status --json` used here (daemon/overview.ts)
 interface Overview {
 	running: boolean;
+	warnings: string[];
 	service: boolean;
 	configError?: string;
 	repos: {
@@ -31,6 +32,7 @@ const EXTRA_PATH = ['/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin'];
 
 export class Background {
 	private busy = false;
+	private refreshed = false; // restarted the service once to fix a warning (see view())
 
 	constructor(private readonly extensionUri: vscode.Uri) {}
 
@@ -63,7 +65,14 @@ export class Background {
 		let error: string | undefined;
 		try {
 			overview = JSON.parse(await this.run(['status', '--json'])) as Overview;
-			error = overview.configError;
+			// The extension was updated (the service still runs the old korn.js) or its runtime moved:
+			// `korn start` again from here fixes it, once per session
+			if (overview.service && overview.warnings.length > 0 && !this.refreshed) {
+				this.refreshed = true;
+				await this.run(['start']);
+				overview = JSON.parse(await this.run(['status', '--json'])) as Overview;
+			}
+			error = overview.configError ?? overview.warnings[0];
 		} catch (e) {
 			error = (e as Error).message;
 		}

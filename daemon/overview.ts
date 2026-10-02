@@ -4,8 +4,9 @@ import { formatDate, pendingMerge } from '../src/git/ops';
 import { Config, ConfigError, configPath, ConflictPreset, FrequencyPreset, loadConfig, presetOf } from './config';
 import { nextStep } from './messages';
 import { openMode } from './opener';
-import { serviceInstalled } from './service';
-import { daemonPid, readPaused, readState } from './state';
+import { serviceInstalled, serviceRuntime } from './service';
+import { daemonPid, daemonVersion, readPaused, readState } from './state';
+import { VERSION } from './version';
 
 // What `korn` (no arguments), `korn status --json` and the VS Code panel show: one shape for all.
 
@@ -26,6 +27,7 @@ export interface RepoOverview {
 
 export interface Overview {
 	running: boolean; // the daemon process is alive
+	warnings: string[]; // things to fix with `korn start` (old version still running, runtime gone)
 	service: boolean; // starts at login (korn start)
 	configPath: string;
 	configured: boolean;
@@ -34,7 +36,17 @@ export interface Overview {
 }
 
 export async function overview(): Promise<Overview> {
-	const base = { running: daemonPid() !== undefined, service: serviceInstalled(), configPath: configPath() };
+	const running = daemonPid() !== undefined;
+	const warnings: string[] = [];
+	const runtime = serviceRuntime();
+	if (runtime && !existsSync(runtime)) {
+		warnings.push(`โปรแกรมที่ใช้รัน sync เบื้องหลังหายไป (${runtime}) — พิมพ์: korn start`);
+	}
+	const runningVersion = daemonVersion();
+	if (running && runningVersion && runningVersion !== VERSION) {
+		warnings.push(`อัปเดตเป็น ${VERSION} แล้ว แต่เบื้องหลังยังรัน ${runningVersion} — พิมพ์: korn start เพื่อใช้เวอร์ชันใหม่`);
+	}
+	const base = { running, warnings, service: serviceInstalled(), configPath: configPath() };
 	let config: Config;
 	try {
 		config = loadConfig();
@@ -92,6 +104,7 @@ export function describe(o: Overview): string {
 		return 'ยังไม่มี repo — พิมพ์: korn setup';
 	}
 	lines.push(
+		...o.warnings.map((w) => `⚠ ${w}`),
 		o.running
 			? '✓ sync เบื้องหลังทำงานอยู่'
 			: o.service

@@ -1,0 +1,21 @@
+{
+  "name": "korn-sync",
+  "version": "{{version}}",
+  "description": "Sync markdown notes through git in the background — commits when you stop typing, gets what others pushed, settles conflicts. The CLI of Korn Markdown Sync.",
+  "keywords": ["markdown", "notes", "git", "sync", "auto-commit", "daemon", "cli"],
+  "homepage": "https://github.com/midnightzkkornz/korn-extension/blob/main/docs/daemon.md",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/midnightzkkornz/korn-extension.git"
+  },
+  "bugs": "https://github.com/midnightzkkornz/korn-extension/issues",
+  "license": "MIT",
+  "bin": {
+    "korn": "korn.js"
+  },
+  "files": ["korn.js", "README.md", "LICENSE"],
+  "engines": {
+    "node": ">=18"
+  },
+  "os": ["darwin", "linux"]
+}

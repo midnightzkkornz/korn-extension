@@ -73,7 +73,7 @@ Change any of them in **Keyboard Shortcuts** (`⌘K ⌘S`), search "Korn".
 
 ## Background sync (even with VS Code closed)
 
-Tick **Sync เบื้องหลัง** in the Korn Sync panel: your notes keep syncing after VS Code closes and after a restart, a few minutes after you stop typing. Pick what happens when edits collide (keep both / ask me / use mine) and how often, right in the panel. Without VS Code: `brew install midnightzkkornz/tap/korn && korn setup`. See [docs/daemon.md](docs/daemon.md).
+Tick **Sync เบื้องหลัง** in the Korn Sync panel: your notes keep syncing after VS Code closes and after a restart, a few minutes after you stop typing. Pick what happens when edits collide (keep both / ask me / use mine) and how often, right in the panel. Without VS Code: `npm install -g korn-sync && korn setup` (or pnpm / Homebrew). See [docs/daemon.md](docs/daemon.md).
 
 ## Known limitations
 
@@ -145,7 +145,7 @@ Tick **Sync เบื้องหลัง** in the Korn Sync panel: your notes 
 
 ### Sync เบื้องหลัง (แม้ปิด VS Code)
 
-ติ๊ก **Sync เบื้องหลัง** ในแผง Korn Sync โน้ตจะ sync ต่อแม้ปิด VS Code และตอนเปิดเครื่อง (หลังหยุดพิมพ์ไม่กี่นาที) เลือกได้ในแผงว่าถ้าแก้ชนกันจะ เก็บทั้งสองไว้ / ถามฉัน / ใช้ของฉัน และบ่อยแค่ไหน ถ้าไม่ใช้ VS Code: `brew install midnightzkkornz/tap/korn && korn setup` ดูเพิ่มที่ [docs/daemon.md](docs/daemon.md)
+ติ๊ก **Sync เบื้องหลัง** ในแผง Korn Sync โน้ตจะ sync ต่อแม้ปิด VS Code และตอนเปิดเครื่อง (หลังหยุดพิมพ์ไม่กี่นาที) เลือกได้ในแผงว่าถ้าแก้ชนกันจะ เก็บทั้งสองไว้ / ถามฉัน / ใช้ของฉัน และบ่อยแค่ไหน ถ้าไม่ใช้ VS Code: `npm install -g korn-sync && korn setup` (หรือ pnpm / brew) ดูเพิ่มที่ [docs/daemon.md](docs/daemon.md)
 
 ### ข้อจำกัดตอนนี้
 

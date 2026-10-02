@@ -1,17 +1,20 @@
 # Homebrew formula for korn — TEMPLATE: {{version}} and {{sha256}} are filled in by
-# packaging/homebrew/render-formula.mjs, which the release workflow (.github/workflows/korn-release.yml)
-# runs and pushes to github.com/midnightzkkornz/homebrew-tap as Formula/korn.rb.
+# packaging/homebrew/render-formula.mjs into Formula/korn.rb at the repo root, which is what
+#   brew tap midnightzkkornz/korn https://github.com/midnightzkkornz/korn-extension
+# reads. The release workflow (.github/workflows/korn-release.yml) does this after publishing to npm.
 class Korn < Formula
   desc "Sync markdown notes through Git in the background"
   homepage "https://github.com/midnightzkkornz/korn-extension"
-  url "https://github.com/midnightzkkornz/korn-extension/releases/download/korn-v{{version}}/korn-{{version}}.tar.gz"
+  # the same package as `npm install -g korn-sync`
+  url "https://registry.npmjs.org/korn-sync/-/korn-sync-{{version}}.tgz"
   sha256 "{{sha256}}"
   license "MIT"
 
   depends_on "node"
 
   def install
-    libexec.install "korn.js"
+    # one bundled file, no dependencies: no npm install needed
+    libexec.install Dir["*"]
     (bin/"korn").write <<~EOS
       #!/bin/bash
       exec "#{Formula["node"].opt_bin}/node" "#{libexec}/korn.js" "$@"
@@ -24,7 +27,7 @@ class Korn < Formula
         korn setup
 
       Then just type `korn` to see how it's doing. Stop it with `korn stop`.
-      (korn start/stop manage the background service themselves; brew services isn't needed.)
+      After `brew upgrade korn`, run `korn start` once to use the new version.
     EOS
   end
 

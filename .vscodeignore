@@ -16,3 +16,4 @@ daemon/**
 dist/**
 docs/**
 packaging/**
+Formula/**

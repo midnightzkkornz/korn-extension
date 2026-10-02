@@ -1,9 +1,8 @@
 VERSION := $(shell node -p "require('./package.json').version")
 VSIX := korn-extension-$(VERSION).vsix
 KORN_VERSION := $(shell node -p "require('fs').readFileSync('daemon/version.ts','utf8').match(/'(.+)'/)[1]")
-KORN_TGZ := dist/korn-$(KORN_VERSION).tar.gz
 
-.PHONY: run test package install clean daemon-build daemon-run daemon-release korn-link korn-tag
+.PHONY: run test package install clean daemon-build daemon-run korn-link npm-build npm-pack npm-publish brew-formula brew-formula-check korn-tag
 
 # ---- VS Code extension ----
 
@@ -39,15 +38,33 @@ korn-link: daemon-build
 	chmod +x dist/korn.js
 	@echo "korn → $(CURDIR)/dist/korn.js  (needs ~/.local/bin in PATH)"
 
-# Tarball + rendered formula (the release workflow runs this too, see docs/daemon.md "Releasing")
-daemon-release: daemon-build
-	rm -rf dist/korn-$(KORN_VERSION) && mkdir -p dist/korn-$(KORN_VERSION)
-	cp dist/korn.js LICENSE dist/korn-$(KORN_VERSION)/
-	tar -czf $(KORN_TGZ) -C dist korn-$(KORN_VERSION)
-	rm -rf dist/korn-$(KORN_VERSION)
-	node packaging/homebrew/render-formula.mjs $(KORN_VERSION) $$(shasum -a 256 $(KORN_TGZ) | cut -d' ' -f1) > dist/korn.rb
-	@echo "$(KORN_TGZ) + dist/korn.rb"
+# ---- Publishing korn: npm (also pnpm/yarn/bun) + Homebrew formula in this repo (docs/daemon.md "Releasing") ----
 
-# Prints the commands that publish korn $(KORN_VERSION) to Homebrew (GitHub Actions does the rest)
+# dist/npm: the korn-sync package
+npm-build: daemon-build
+	node packaging/npm/build.mjs
+
+# What would be published
+npm-pack: npm-build
+	cd dist/npm && npm pack --dry-run
+
+# Publish from this machine (needs `npm login`); the korn-release workflow does this on a korn-v* tag
+npm-publish: npm-build
+	cd dist/npm && npm publish --access public
+
+# Formula/korn.rb from the version published on npm (run after npm-publish, then commit it)
+brew-formula:
+	curl -fsSL -o dist/korn-sync-$(KORN_VERSION).tgz https://registry.npmjs.org/korn-sync/-/korn-sync-$(KORN_VERSION).tgz
+	mkdir -p Formula
+	node packaging/homebrew/render-formula.mjs $(KORN_VERSION) $$(shasum -a 256 dist/korn-sync-$(KORN_VERSION).tgz | cut -d' ' -f1) > Formula/korn.rb
+	@echo "Formula/korn.rb → korn-sync $(KORN_VERSION) (commit it)"
+
+# Check the formula against a local pack, without publishing (writes dist/korn.rb, not Formula/)
+brew-formula-check: npm-build
+	cd dist/npm && npm pack --pack-destination .. >/dev/null
+	node packaging/homebrew/render-formula.mjs $(KORN_VERSION) $$(shasum -a 256 dist/korn-sync-$(KORN_VERSION).tgz | cut -d' ' -f1) > dist/korn.rb
+	ruby -c dist/korn.rb
+
+# Prints the commands that release korn $(KORN_VERSION) (the workflow publishes to npm and updates Formula/)
 korn-tag:
 	@echo "git tag korn-v$(KORN_VERSION) && git push origin korn-v$(KORN_VERSION)"

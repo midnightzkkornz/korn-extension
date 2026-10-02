@@ -8,7 +8,7 @@
 - Keyboard shortcuts: switch mode (`⌃⌘1`–`4`, `⌃⌘M`), insert date & time (`⌃⌘T`), open a note (`⌃⌘O`), new note (`⌃⌘N`), show the panel (`⌃⌘K`)
 - Resolve tab keys: `↑` `↓` pick a conflict, `M` / `T` / `B` / `⇧B` / `E` / `U` choose, `⌘Enter` Finish & Sync
 - New commands: `Korn: Show Mode…`, `Korn: Insert Date & Time`, `Korn: Open Note…`
-- Background sync: tick **Sync เบื้องหลัง** in the panel to keep syncing after VS Code closes (the bundled `korn` daemon; also `brew install` + `korn setup` without VS Code). Plain choices for collisions (keep both / ask me / use mine) and frequency; conflicts open straight in the Resolve tab. See docs/daemon.md
+- Background sync: tick **Sync เบื้องหลัง** in the panel to keep syncing after VS Code closes (the bundled `korn` daemon; without VS Code: `npm install -g korn-sync` (or pnpm / Homebrew) + `korn setup`). Plain choices for collisions (keep both / ask me / use mine) and frequency; conflicts open straight in the Resolve tab. See docs/daemon.md
 
 ## 0.1.0
 

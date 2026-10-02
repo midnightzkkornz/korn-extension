@@ -54,7 +54,7 @@ eq('keep both message', conflictMessage.keepBoth('my-notes', 'note.r.md', 'note.
 eq('next step', nextStep.ask('note.r.md'), 'เลือกใน VS Code (เปิดไฟล์ → แท็บ Resolve) หรือพิมพ์: korn resolve note.r.md');
 
 // ---- `korn` summary: always says what to do next ----
-const base: Overview = { running: true, service: true, configPath: '/c', configured: true, repos: [] };
+const base: Overview = { running: true, warnings: [], service: true, configPath: '/c', configured: true, repos: [] };
 eq('not set up', describe({ ...base, configured: false }), 'ยังไม่ได้ตั้งค่า — พิมพ์: korn setup');
 eq('bad config', describe({ ...base, configured: false, configError: 'line 3: x' }), '⚠ ตั้งค่าผิด: line 3: x');
 eq('no repos', describe(base), 'ยังไม่มี repo — พิมพ์: korn setup');
@@ -66,5 +66,6 @@ const withConflict = describe({
 });
 eq('conflict → next step', withConflict.split('\n').slice(-1)[0], '  ⚠ note.r.md ถูกแก้ทั้งสองฝั่ง ต้องเลือก → เลือกใน VS Code (เปิดไฟล์ → แท็บ Resolve) หรือพิมพ์: korn resolve note.r.md');
 eq('running line', withConflict.split('\n')[0], '✓ sync เบื้องหลังทำงานอยู่');
+eq('warnings first', describe({ ...base, warnings: ['อัปเดตแล้ว — พิมพ์: korn start'], repos: [repoView] }).split('\n')[0], '⚠ อัปเดตแล้ว — พิมพ์: korn start');
 
 console.log(failed ? `\n${failed} FAILED` : '\nALL PASSED');

@@ -8,10 +8,18 @@ Korn can keep syncing your notes after VS Code is closed. A small background pro
 
 **In VS Code:** open the **Korn Sync** panel and tick **Sync เบื้องหลัง** (background sync). That's it: it uses the repos of your workspace, and keeps running after VS Code closes and after a restart. Nothing else to install.
 
-**In a terminal:**
+**In a terminal** (needs Node.js 18+, or Homebrew installs it):
 
 ```sh
-brew install midnightzkkornz/tap/korn
+npm install -g korn-sync          # or: pnpm add -g korn-sync (first time: pnpm setup) · yarn global add korn-sync · bun add -g korn-sync
+korn setup
+```
+
+or with Homebrew (the formula lives in this repo):
+
+```sh
+brew tap midnightzkkornz/korn https://github.com/midnightzkkornz/korn-extension
+brew install korn
 korn setup
 ```
 
@@ -55,7 +63,9 @@ Change them in the panel (VS Code) or with `korn setup` / `korn set . --conflict
 | `korn log [-f]` | What it did |
 | `korn help --all` | Every command (`set`, `add`, `remove`, `sync`, `status --json`, `doctor`, `pause`, `resume`, `daemon`…) |
 
-In VS Code, `Korn: Install 'korn' Command in PATH` puts `korn` in `~/.local/bin` without Homebrew (needs Node.js).
+In VS Code, `Korn: Install 'korn' Command in PATH` puts the bundled `korn` in `~/.local/bin` without installing anything else (needs Node.js).
+
+**After upgrading** (`npm update -g korn-sync`, `brew upgrade korn`…), run `korn start` once so the background service uses the new version; `korn` reminds you. (VS Code does this by itself when the extension updates.)
 
 ---
 
@@ -109,22 +119,22 @@ Every 30 seconds, for each repo:
 
 Plain macOS banners come from `osascript` and open Script Editor when clicked, so conflicts use VS Code or the dialog. With `terminal-notifier` installed, banners use it and open the file. If macOS won't let a background job show the dialog, a banner is shown instead (see `korn log`).
 
-### Releasing (Homebrew)
+### Releasing (npm + Homebrew)
 
-`brew install midnightzkkornz/tap/korn` installs from the tap repo, which a GitHub Actions workflow keeps up to date (`.github/workflows/korn-release.yml`).
+One package on npm, `korn-sync`, serves npm, pnpm, yarn and bun. The Homebrew formula (`Formula/korn.rb`, in this repo so no separate tap repo is needed) downloads that same package from npm. A GitHub Actions workflow does both (`.github/workflows/korn-release.yml`).
 
 One-time setup:
 
-1. Create a **public** repo `midnightzkkornz/homebrew-tap` (empty is fine). `korn-extension` must be public too, so Homebrew can download the release.
-2. Create a fine-grained GitHub token with **Contents: Read and write** on `homebrew-tap` only, and add it to `korn-extension` → Settings → Secrets and variables → Actions as `HOMEBREW_TAP_TOKEN`.
+1. This repo must be **public** (`brew tap` clones it; npm provenance needs it).
+2. On npmjs.com, create a **Granular Access Token** that can publish (read and write packages), and add it to this repo → Settings → Secrets and variables → Actions as `NPM_TOKEN`.
 
 Each release:
 
 1. Bump `daemon/version.ts` and commit.
 2. `make korn-tag` prints `git tag korn-v<version> && git push origin korn-v<version>`; run it.
-3. The workflow tests, builds `korn-<version>.tar.gz`, creates the GitHub Release, and pushes `Formula/korn.rb` (rendered from `packaging/homebrew/korn.rb`) to the tap. Users get it with `brew upgrade korn`.
+3. The workflow tests, publishes `korn-sync@<version>` to npm, then writes `Formula/korn.rb` (from `packaging/homebrew/korn.rb`, with the sha256 of the published tarball) and commits it to `main`. If `main` has branch protection that blocks GitHub Actions, that last step fails: allow it, or commit the formula by hand.
 
-`make daemon-release` does the build and formula locally (`dist/korn-<version>.tar.gz`, `dist/korn.rb`) to check before tagging.
+By hand instead: `npm login`, `make npm-publish`, `make brew-formula` (writes `Formula/korn.rb` from the published version), commit. `make npm-pack` shows what would be published; `make brew-formula-check` renders a formula from a local pack into `dist/`.
 
 ### With the VS Code extension
 
@@ -149,12 +159,13 @@ Both can run together. They share a lock (`.git/korn.lock`): the daemon skips a 
 | `daemon/config.ts` | Config, presets (`setRepoOptions`), include/exclude/rules |
 | `daemon/engine.ts` | One round (`runRound`), `korn resolve` (`resolvePaused`, `finishMergeResolve`) |
 | `daemon/service.ts` | `korn start` / `stop`: LaunchAgent / systemd unit |
+| `packaging/npm/`, `packaging/homebrew/`, `Formula/korn.rb` | The `korn-sync` npm package; the Homebrew formula template and its rendered copy |
 | `daemon/notify.ts`, `daemon/state.ts` | Notifications; state.json, paused files, log, pid |
 | `src/git/ops.ts`, `src/git/lock.ts`, `src/shared/daemonBridge.ts` | Shared with the extension: git steps, lock, heartbeat + events |
 | `src/daemon/background.ts`, `webview/panel/components/BackgroundSync.tsx` | The panel section: runs the bundled `out/korn.js` |
 | `test/daemon/`, `test/unit/daemon*.test.ts` | Tests (real git repos in a temp folder) |
 
-Build: `npm run compile` also builds `out/korn.js` (shipped in the extension) and `dist/korn.js`. `make daemon-run` runs it in a terminal, `make korn-link` puts the dev build in `~/.local/bin`, `make daemon-release` makes the Homebrew tarball.
+Build: `npm run compile` also builds `out/korn.js` (shipped in the extension) and `dist/korn.js`. `make daemon-run` runs it in a terminal, `make korn-link` puts the dev build in `~/.local/bin`, `make npm-pack` / `make npm-publish` / `make brew-formula` publish (see Releasing).
 
 ---
 
@@ -166,12 +177,22 @@ Korn sync โน้ตต่อได้แม้ปิด VS Code: มีโป
 
 **ใน VS Code:** เปิดแผง **Korn Sync** แล้วติ๊ก **Sync เบื้องหลัง** จบ ใช้ repo ใน workspace ทำงานต่อแม้ปิด VS Code และตอนเปิดเครื่อง ไม่ต้องลงอะไรเพิ่ม
 
-**ใน terminal:**
+**ใน terminal** (ต้องมี Node.js 18 ขึ้นไป หรือใช้ brew ซึ่งลงให้เอง):
 
 ```sh
-brew install midnightzkkornz/tap/korn
+npm install -g korn-sync          # หรือ pnpm add -g korn-sync (ครั้งแรก pnpm setup) · yarn global add korn-sync · bun add -g korn-sync
 korn setup
 ```
+
+หรือใช้ Homebrew (สูตรอยู่ใน repo นี้):
+
+```sh
+brew tap midnightzkkornz/korn https://github.com/midnightzkkornz/korn-extension
+brew install korn
+korn setup
+```
+
+อัปเดตแล้ว (`npm update -g korn-sync`, `brew upgrade korn`) ให้พิมพ์ `korn start` ครั้งหนึ่ง เพื่อให้ตัวที่รันเบื้องหลังเป็นเวอร์ชันใหม่ (`korn` จะเตือนให้)
 
 `korn setup` ถาม 3 ข้อ (โฟลเดอร์ไหน, ถ้าแก้ชนกันทำยังไง, บ่อยแค่ไหน) แล้วเริ่มทำงานให้เลย
 
@@ -206,12 +227,16 @@ korn setup
 
 ตั้งได้ว่า **เลือกเลย** เปิดที่ไหนด้วย `open:` ใน config: `auto` (มี VS Code ใช้ VS Code ไม่มีใช้ Terminal) / `vscode` / `terminal` ซึ่ง `korn setup` จะถามให้ถ้าเจอ VS Code ในเครื่อง
 
-### ออกเวอร์ชันใหม่ให้ brew
+### ออกเวอร์ชันใหม่ (npm + brew)
 
-ตั้งครั้งเดียว: สร้าง repo สาธารณะ `midnightzkkornz/homebrew-tap` (`korn-extension` ต้องเป็นสาธารณะด้วย) แล้วสร้าง token ที่มีสิทธิ์ Contents: Read and write เฉพาะ `homebrew-tap` ใส่เป็น secret `HOMEBREW_TAP_TOKEN` ใน `korn-extension`
+แพ็กเกจเดียวบน npm ชื่อ `korn-sync` ใช้ได้ทั้ง npm, pnpm, yarn, bun ส่วนสูตร brew (`Formula/korn.rb` อยู่ใน repo นี้ ไม่ต้องมี repo tap แยก) ดาวน์โหลดแพ็กเกจเดียวกันจาก npm
 
-ทุกครั้งที่ออกเวอร์ชัน: แก้ `daemon/version.ts` → commit → `make korn-tag` จะพิมพ์คำสั่ง `git tag … && git push …` ให้ รันแล้ว GitHub Actions จะ test, build, สร้าง release และอัปเดตสูตรใน tap ให้เอง ผู้ใช้อัปเดตด้วย `brew upgrade korn`
+ตั้งครั้งเดียว: repo นี้ต้องเป็น **public** แล้วสร้าง Granular Access Token บน npmjs.com ที่ publish ได้ ใส่เป็น secret `NPM_TOKEN` ใน repo นี้
 
-ใน VS Code มีคำสั่ง `Korn: Install 'korn' Command in PATH` ใส่คำสั่ง `korn` ให้ใช้ใน terminal ได้โดยไม่ต้องลง brew (ต้องมี Node.js)
+ทุกครั้งที่ออกเวอร์ชัน: แก้ `daemon/version.ts` → commit → `make korn-tag` จะพิมพ์คำสั่ง `git tag … && git push …` ให้ รันแล้ว GitHub Actions จะ test → publish ขึ้น npm → เขียน `Formula/korn.rb` แล้ว commit เข้า `main` ให้เอง
+
+ทำเองจากเครื่องก็ได้: `npm login` → `make npm-publish` → `make brew-formula` → commit
+
+ใน VS Code มีคำสั่ง `Korn: Install 'korn' Command in PATH` ใส่คำสั่ง `korn` ให้ใช้ใน terminal ได้โดยไม่ต้องติดตั้งอะไรเพิ่ม (ต้องมี Node.js)
 
 ตั้งค่าละเอียด (include/exclude, rules, notify) ดูหัวข้อ "For those who want to fine-tune" ด้านบน
