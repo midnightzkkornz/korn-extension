@@ -2,6 +2,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import type { ConflictAction } from '../shared/protocol';
 import { getGitApi, push, Repository } from './api';
+import { RepoBusyError, withRepoLock } from './lock';
 import * as ops from './ops';
 
 export type { ConflictAction };
@@ -47,7 +48,15 @@ export async function fetchRepo(root: string): Promise<boolean> {
 
 // Bring in what others pushed (no push). See ops.pullRemote for when it skips.
 export async function pullRepo(root: string): Promise<ops.PullResult> {
-	const result = await ops.pullRemote(root);
+	let result: ops.PullResult;
+	try {
+		result = await withRepoLock(root, 'extension', () => ops.pullRemote(root));
+	} catch (error) {
+		if (error instanceof RepoBusyError) {
+			return { pulled: false, busy: error.holder }; // the daemon is syncing it, try next round
+		}
+		throw error;
+	}
 	if (result.pulled) {
 		await (await getGitApi()).getRepository(vscode.Uri.file(root))?.status();
 	}
@@ -91,6 +100,14 @@ export async function getLastSyncTime(uri: vscode.Uri): Promise<Date | undefined
 // Returns kind 'conflict' when the remote changed the same lines of this file.
 export async function syncFile(uri: vscode.Uri): Promise<SyncOutcome> {
 	const { repo, cwd, file } = await openRepo(uri);
+	// the korn daemon (daemon/) may be syncing the same repo: wait for it
+	return withRepoLock(cwd, 'extension', () => syncLocked(repo, cwd, file), LOCK_WAIT_MS);
+}
+
+// Wait this long for the korn daemon to finish before giving up with "busy"
+const LOCK_WAIT_MS = 20_000;
+
+async function syncLocked(repo: Repository, cwd: string, file: string): Promise<SyncOutcome> {
 	const time = new Date();
 	let message: string | undefined;
 	let merged = false;
@@ -126,6 +143,16 @@ export async function syncFile(uri: vscode.Uri): Promise<SyncOutcome> {
 // Handle a conflict found by syncFile (the 3 choices from the design)
 export async function resolveConflict(uri: vscode.Uri, action: ConflictAction, copyName?: string): Promise<SyncOutcome | undefined> {
 	const { repo, cwd, file } = await openRepo(uri);
+	return withRepoLock(cwd, 'extension', () => resolveLocked(repo, cwd, file, action, copyName), LOCK_WAIT_MS);
+}
+
+async function resolveLocked(
+	repo: Repository,
+	cwd: string,
+	file: string,
+	action: ConflictAction,
+	copyName?: string
+): Promise<SyncOutcome | undefined> {
 	const state = await ops.mergeState(cwd, file);
 	if (state === 'rebase') {
 		throw new Error('มี rebase ค้างอยู่ แก้ใน Source Control ให้เสร็จก่อน');

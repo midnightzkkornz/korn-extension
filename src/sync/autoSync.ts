@@ -193,6 +193,8 @@ export class AutoSync implements vscode.Disposable {
 					log(`pull ${repo}: conflict in ${result.conflictFile}`);
 					this.conflicts.add(uri);
 					this.onConflict(uri);
+				} else if (result.busy) {
+					log(`pull ${repo}: skipped — ${result.busy} is syncing this repo`);
 				} else if (result.skipped) {
 					log(`pull ${repo}: waiting — ${result.skipped} has changes not synced yet (its Sync will merge)`);
 				}

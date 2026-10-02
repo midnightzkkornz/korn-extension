@@ -12,3 +12,7 @@ Makefile
 media/icon.svg
 .github/**
 out/**/*.map
+daemon/**
+dist/**
+docs/**
+packaging/**

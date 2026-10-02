@@ -41,11 +41,39 @@ export interface RepoInfo {
 	detached: boolean;
 }
 
+// ---- Background sync (the korn daemon, run from out/korn.js) ----
+
+export type ConflictPreset = 'keepBoth' | 'ask' | 'mine';
+export type FrequencyPreset = 'fast' | 'normal' | 'relaxed';
+
+export interface BackgroundRepo {
+	root: string;
+	name: string;
+	included: boolean; // in the daemon's config
+	conflict: ConflictPreset | 'custom';
+	frequency: FrequencyPreset | 'custom';
+	lastSync?: string; // ISO
+	waiting: number; // files waiting for their quiet time
+	needsChoice: { file: string; path: string }[]; // conflicts waiting for the user
+	notices: { message: string; file: string }[]; // recent conflicts settled automatically
+	problem?: string;
+}
+
+export interface BackgroundView {
+	supported: boolean; // macOS / Linux
+	on: boolean; // starts at login
+	running: boolean;
+	busy: boolean; // turning on/off
+	repos: BackgroundRepo[]; // the git repos of this workspace
+	error?: string;
+}
+
 // ---- Side panel (webview/panel) ----
 
 export type HostToPanel =
 	| { type: 'conflicts'; items: ConflictItem[] }
-	| { type: 'files'; files: FileRow[]; repos: RepoInfo[]; autoSync: string };
+	| { type: 'files'; files: FileRow[]; repos: RepoInfo[]; autoSync: string }
+	| { type: 'background'; view: BackgroundView };
 
 export type PanelToHost =
 	| { type: 'ready' }
@@ -54,4 +82,9 @@ export type PanelToHost =
 	| { type: 'open'; uri: string }
 	| { type: 'openSettings' }
 	| { type: 'showLog' }
-	| { type: 'resolve'; uri: string; action: ConflictAction };
+	| { type: 'resolve'; uri: string; action: ConflictAction }
+	| { type: 'bgToggle'; on: boolean }
+	| { type: 'bgSet'; root: string; conflict?: ConflictPreset; frequency?: FrequencyPreset }
+	| { type: 'bgInclude'; root: string; included: boolean }
+	| { type: 'bgOpen'; path: string }
+	| { type: 'bgLog' };

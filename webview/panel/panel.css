@@ -139,3 +139,43 @@ button.secondary:hover { background: var(--vscode-button-secondaryHoverBackgroun
 .repo-name { font-weight: 600; margin-right: 6px; }
 .repo-warn { color: var(--vscode-editorWarning-foreground); }
 .repo-error { color: var(--vscode-errorForeground); }
+
+/* Background sync (the korn daemon) */
+.bg {
+	margin: 0 0 14px;
+	padding: 8px 10px;
+	border: 1px solid var(--vscode-panel-border);
+	border-radius: 4px;
+}
+.bg-switch { display: flex; align-items: center; gap: 6px; font-weight: 600; cursor: pointer; }
+.bg-switch input { margin: 0; }
+.bg-status { margin: 2px 0 0 22px; font-size: 0.9em; color: var(--vscode-descriptionForeground); }
+.bg-status.warn, .bg-problem { color: var(--vscode-editorWarning-foreground); }
+.bg-repo { margin-top: 10px; }
+.bg-field {
+	display: grid;
+	grid-template-columns: 6.5em 1fr;
+	align-items: center;
+	gap: 6px;
+	margin: 4px 0;
+}
+.bg-field select {
+	min-width: 0;
+	padding: 2px 4px;
+	color: var(--vscode-dropdown-foreground);
+	background: var(--vscode-dropdown-background);
+	border: 1px solid var(--vscode-dropdown-border);
+	font-family: inherit;
+}
+.bg-line, .bg-problem { margin-top: 4px; font-size: 0.9em; word-break: break-word; }
+.bg-line { color: var(--vscode-descriptionForeground); }
+.bg-choice {
+	display: grid;
+	grid-template-columns: 1fr auto;
+	align-items: center;
+	gap: 6px;
+	margin: 6px 0;
+	color: var(--vscode-editorWarning-foreground);
+}
+.bg-choice button { width: auto; padding: 3px 10px; }
+button.auto.inline { display: inline; }

@@ -7,7 +7,7 @@ import { join, relative } from 'node:path';
 import * as esbuild from 'esbuild';
 
 const root = new URL('.', import.meta.url).pathname;
-const files = ['unit', 'git'].flatMap((dir) =>
+const files = ['unit', 'git', 'daemon'].flatMap((dir) =>
 	readdirSync(join(root, dir))
 		.filter((f) => f.endsWith('.test.ts'))
 		.map((f) => join(root, dir, f))

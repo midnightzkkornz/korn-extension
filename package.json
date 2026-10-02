@@ -100,6 +100,21 @@
         "command": "korn.openNote",
         "category": "Korn",
         "title": "Open Note…"
+      },
+      {
+        "command": "korn.background.on",
+        "category": "Korn",
+        "title": "Turn On Background Sync"
+      },
+      {
+        "command": "korn.background.off",
+        "category": "Korn",
+        "title": "Turn Off Background Sync"
+      },
+      {
+        "command": "korn.background.installCommand",
+        "category": "Korn",
+        "title": "Install 'korn' Command in PATH"
       }
     ],
     "menus": {
@@ -204,11 +219,12 @@
   "scripts": {
     "clean": "node -e \"require('fs').rmSync('out',{recursive:true,force:true})\"",
     "vscode:prepublish": "npm run clean && npm run compile",
-    "compile": "tsc -p ./ && tsc -p webview && node esbuild.mjs",
+    "compile": "tsc -p ./ && tsc -p webview && tsc -p daemon && node esbuild.mjs && node daemon/build.mjs",
     "watch": "node esbuild.mjs --watch & tsc -watch -p ./",
     "test": "node test/run.mjs",
     "package": "vsce package",
-    "publish": "vsce publish"
+    "publish": "vsce publish",
+    "daemon:build": "tsc -p daemon && node daemon/build.mjs"
   },
   "devDependencies": {
     "@codemirror/lang-markdown": "^6.5.2",
@@ -218,12 +234,15 @@
     "@lezer/highlight": "^1.2.4",
     "@milkdown/kit": "^7.22.2",
     "@types/node": "^22.0.0",
+    "@types/picomatch": "^4.0.3",
     "@types/vscode": "~1.90.0",
     "@vscode/vsce": "^4.0.0",
     "codemirror": "^6.0.2",
     "diff": "^9.0.0",
     "esbuild": "^0.28.2",
+    "picomatch": "^4.0.7",
     "preact": "^10.29.8",
-    "typescript": "^5.6.0"
+    "typescript": "^5.6.0",
+    "yaml": "^2.9.1"
   }
 }

@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import type { Background } from '../daemon/background';
 import type { ConflictStore } from '../state/conflicts';
 import { listRepos, listRmdFiles } from '../sync/fileStatus';
 import { showLog } from '../shared/log';
@@ -6,6 +7,7 @@ import type { HostToPanel, PanelToHost } from '../shared/protocol';
 import { getNonce } from '../shared/util';
 
 const REFRESH_DELAY_MS = 500;
+const BACKGROUND_REFRESH_MS = 10_000; // background sync status, while the panel is visible
 
 // Side panel shown when clicking the Korn icon in the Activity Bar:
 // conflict cards, then every .r.md file with its sync state.
@@ -21,8 +23,16 @@ export class SyncViewProvider implements vscode.WebviewViewProvider {
 	constructor(
 		private readonly extensionUri: vscode.Uri,
 		private readonly conflicts: ConflictStore,
-		private readonly autoSyncText: () => string
+		private readonly autoSyncText: () => string,
+		private readonly background: Background
 	) {}
+
+	/** Re-read the background sync status (the korn daemon) */
+	async refreshBackground() {
+		if (this.view?.visible) {
+			this.post({ type: 'background', view: await this.background.view() });
+		}
+	}
 
 	/** Re-read the file list (debounced); called on save, sync, file create/delete, window focus… */
 	refresh() {
@@ -60,20 +70,30 @@ export class SyncViewProvider implements vscode.WebviewViewProvider {
 		const visibleSub = webviewView.onDidChangeVisibility(() => {
 			if (webviewView.visible) {
 				this.refresh();
+				this.refreshBackground();
 				this.onShow();
 			}
 		});
+		const backgroundTimer = setInterval(() => this.refreshBackground(), BACKGROUND_REFRESH_MS);
 		webviewView.onDidDispose(() => {
 			sub.dispose();
 			visibleSub.dispose();
+			clearInterval(backgroundTimer);
 			this.view = undefined;
 		});
+		// background sync: run, then show the new state
+		const bg = (work: () => Promise<unknown>) =>
+			work().then(
+				() => this.refreshBackground(),
+				(error) => vscode.window.showErrorMessage(`Korn: ${(error as Error).message}`)
+			);
 
 		webviewView.webview.onDidReceiveMessage((message: PanelToHost) => {
 			switch (message.type) {
 				case 'ready':
 					postConflicts();
 					this.postFiles();
+					this.refreshBackground();
 					this.onShow();
 					break;
 				case 'syncAll':
@@ -93,6 +113,21 @@ export class SyncViewProvider implements vscode.WebviewViewProvider {
 					break;
 				case 'resolve':
 					vscode.commands.executeCommand('korn.resolveConflict', message.uri, message.action);
+					break;
+				case 'bgToggle':
+					this.background.toggle(message.on, () => this.refreshBackground());
+					break;
+				case 'bgSet':
+					bg(() => this.background.set(message.root, message));
+					break;
+				case 'bgInclude':
+					bg(() => this.background.include(message.root, message.included));
+					break;
+				case 'bgOpen':
+					vscode.commands.executeCommand('vscode.open', vscode.Uri.file(message.path));
+					break;
+				case 'bgLog':
+					this.background.openLog();
 					break;
 			}
 		});

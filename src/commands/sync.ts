@@ -3,6 +3,7 @@ import { ctx } from '../context';
 import { SyncOutcome, syncFile } from '../git/sync';
 import { showBusy, showGitError } from '../shared/ui';
 import { listRmdFiles } from '../sync/fileStatus';
+import { offerBackgroundSync } from './background';
 import { askConflictAction, notifyConflict } from './conflict';
 import { activeUri } from './editors';
 
@@ -43,6 +44,7 @@ export async function syncOne(target: vscode.Uri, { quiet = false } = {}): Promi
 				vscode.window.showInformationMessage(
 					result.committed ? `Synced: ${result.message}` : `ไม่มีการเปลี่ยนแปลงใน ${name} — push แล้ว`
 				);
+				offerBackgroundSync(ctx.state); // once ever: keep syncing after VS Code closes?
 			}
 		}
 		return result;

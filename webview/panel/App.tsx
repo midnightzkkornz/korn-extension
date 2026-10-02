@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'preact/hooks';
-import type { ConflictItem, FileRow, HostToPanel, PanelToHost, RepoInfo } from '../../src/shared/protocol';
+import type { BackgroundView, ConflictItem, FileRow, HostToPanel, PanelToHost, RepoInfo } from '../../src/shared/protocol';
 import { SyncIcon } from '../shared/SyncIcon';
 import { createPoster, useHostMessage } from '../shared/vscode';
+import { BackgroundSync } from './components/BackgroundSync';
 import { ConflictCard } from './components/ConflictCard';
 import { FileList } from './components/FileList';
 import { isPending, repoLine } from './labels';
@@ -14,6 +15,7 @@ export function App() {
 	const [files, setFiles] = useState<FileRow[]>();
 	const [repos, setRepos] = useState<RepoInfo[]>([]);
 	const [autoSync, setAutoSync] = useState('Auto-sync: …');
+	const [background, setBackground] = useState<BackgroundView>();
 
 	useHostMessage<HostToPanel>((message) => {
 		switch (message.type) {
@@ -24,6 +26,9 @@ export function App() {
 				setFiles(message.files);
 				setRepos(message.repos);
 				setAutoSync(message.autoSync);
+				break;
+			case 'background':
+				setBackground(message.view);
 				break;
 		}
 	});
@@ -57,6 +62,8 @@ export function App() {
 					log
 				</button>
 			</div>
+
+			<BackgroundSync view={background} post={post} />
 
 			{conflicts.map((item) => (
 				<ConflictCard key={item.uri} item={item} onChoose={(action) => post({ type: 'resolve', uri: item.uri, action })} />

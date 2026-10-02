@@ -71,6 +71,10 @@ In the **Resolve** tab: `↑` `↓` (or `J` `K`) pick a conflict · `M` mine · 
 
 Change any of them in **Keyboard Shortcuts** (`⌘K ⌘S`), search "Korn".
 
+## Background sync (even with VS Code closed)
+
+Tick **Sync เบื้องหลัง** in the Korn Sync panel: your notes keep syncing after VS Code closes and after a restart, a few minutes after you stop typing. Pick what happens when edits collide (keep both / ask me / use mine) and how often, right in the panel. Without VS Code: `brew install midnightzkkornz/tap/korn && korn setup`. See [docs/daemon.md](docs/daemon.md).
+
 ## Known limitations
 
 - Sync works on the branch that is checked out; changes on other branches are not shown.
@@ -138,6 +142,10 @@ Change any of them in **Keyboard Shortcuts** (`⌘K ⌘S`), search "Korn".
 ในแท็บ **Resolve**: `↑` `↓` (หรือ `J` `K`) เลือก conflict · `M` ของเรา · `T` ของอีกคน · `B` ทั้งคู่ (ของเราก่อน) · `⇧B` ทั้งคู่ (ของอีกคนก่อน) · `E` แก้เอง · `U` ยกเลิกที่เลือก · `⌘Enter` / `Ctrl+Enter` Finish & Sync ในช่องแก้เอง `⌘Enter` / `Ctrl+Enter` ใช้ข้อความนั้น และ `Esc` ยกเลิก ใช้ได้แม้คีย์บอร์ดเป็นภาษาไทย
 
 เปลี่ยนคีย์ได้ที่ **Keyboard Shortcuts** (`⌘K ⌘S`) ค้นหา "Korn"
+
+### Sync เบื้องหลัง (แม้ปิด VS Code)
+
+ติ๊ก **Sync เบื้องหลัง** ในแผง Korn Sync โน้ตจะ sync ต่อแม้ปิด VS Code และตอนเปิดเครื่อง (หลังหยุดพิมพ์ไม่กี่นาที) เลือกได้ในแผงว่าถ้าแก้ชนกันจะ เก็บทั้งสองไว้ / ถามฉัน / ใช้ของฉัน และบ่อยแค่ไหน ถ้าไม่ใช้ VS Code: `brew install midnightzkkornz/tap/korn && korn setup` ดูเพิ่มที่ [docs/daemon.md](docs/daemon.md)
 
 ### ข้อจำกัดตอนนี้
 

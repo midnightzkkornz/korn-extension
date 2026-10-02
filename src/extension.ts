@@ -1,13 +1,16 @@
 import * as vscode from 'vscode';
+import { registerBackgroundCommands } from './commands/background';
 import { registerConflictCommands, notifyConflict } from './commands/conflict';
 import { ensureRightEditor, registerEditorCommands } from './commands/editors';
 import { registerFileCommands } from './commands/files';
 import { registerShortcutCommands } from './commands/shortcuts';
 import { registerSyncCommands, syncOne } from './commands/sync';
 import { ctx } from './context';
+import { Background } from './daemon/background';
 import { ConflictStore } from './state/conflicts';
 import { AutoSync } from './sync/autoSync';
 import { watchBranches } from './sync/branchWatch';
+import { watchDaemon } from './sync/daemonEvents';
 import { RmdEditorProvider } from './views/editorProvider';
 import { SyncViewProvider } from './views/panelProvider';
 
@@ -15,7 +18,9 @@ import { SyncViewProvider } from './views/panelProvider';
 // The commands themselves live in src/commands/.
 export function activate(context: vscode.ExtensionContext) {
 	ctx.conflicts = new ConflictStore();
-	ctx.panel = new SyncViewProvider(context.extensionUri, ctx.conflicts, () => ctx.autoSync.statusText());
+	ctx.state = context.globalState;
+	ctx.background = new Background(context.extensionUri);
+	ctx.panel = new SyncViewProvider(context.extensionUri, ctx.conflicts, () => ctx.autoSync.statusText(), ctx.background);
 	ctx.autoSync = new AutoSync(
 		ctx.conflicts,
 		(uri) => syncOne(uri, { quiet: true }),
@@ -49,10 +54,13 @@ export function activate(context: vscode.ExtensionContext) {
 		vscode.window.registerWebviewViewProvider(SyncViewProvider.viewId, panel),
 		vscode.window.registerCustomEditorProvider(RmdEditorProvider.viewType, new RmdEditorProvider(context.extensionUri, conflicts)),
 		...registerSyncCommands(),
+		...registerBackgroundCommands(),
 		...registerConflictCommands(),
 		...registerFileCommands(),
 		...registerShortcutCommands(),
-		...registerEditorCommands()
+		...registerEditorCommands(),
+		// conflicts found by the korn daemon (if installed) show here
+		watchDaemon(() => panel.refreshBackground())
 	);
 
 	// Switching branch: forget conflicts of the old branch and show the new one in the side panel
