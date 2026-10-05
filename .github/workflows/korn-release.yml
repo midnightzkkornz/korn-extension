@@ -58,7 +58,8 @@ jobs:
           # Publish the exact file we pack: the registry serves these bytes, so its sha256 is known
           # right away (a new package can take minutes before the registry serves it)
           (cd dist/npm && npm pack --pack-destination ..)
-          npm publish "dist/korn-sync-$VERSION.tgz" --access public --provenance
+          # "./": without it npm reads dist/… as a GitHub repo (user/repo)
+          npm publish "./dist/korn-sync-$VERSION.tgz" --access public --provenance
 
       - name: Homebrew formula
         run: |
