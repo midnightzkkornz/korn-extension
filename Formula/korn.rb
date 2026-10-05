@@ -3,8 +3,8 @@ class Korn < Formula
   desc "Sync markdown notes through Git in the background"
   homepage "https://github.com/midnightzkkornz/korn-extension"
   # the same package as `npm install -g korn-sync`
-  url "https://registry.npmjs.org/korn-sync/-/korn-sync-0.1.0.tgz"
-  sha256 "9ae3208fa3589ab44db867335d35bd69d2a08cc9bd9bab438c2f9fb5d4aefee4"
+  url "https://registry.npmjs.org/korn-sync/-/korn-sync-0.1.1.tgz"
+  sha256 "cbfd1afcc5b5c453eed2cf358ad2e18bdbf8e018b3d3eca2874b4db342ee1e1e"
   license "MIT"
 
   depends_on "node"
