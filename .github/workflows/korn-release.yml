@@ -55,16 +55,13 @@ jobs:
             exit 1
           fi
           make npm-build
-          cd dist/npm
-          npm publish --access public --provenance
+          # Publish the exact file we pack: the registry serves these bytes, so its sha256 is known
+          # right away (a new package can take minutes before the registry serves it)
+          (cd dist/npm && npm pack --pack-destination ..)
+          npm publish "dist/korn-sync-$VERSION.tgz" --access public --provenance
 
-      - name: Homebrew formula from the published tarball
+      - name: Homebrew formula
         run: |
-          TGZ="https://registry.npmjs.org/korn-sync/-/korn-sync-$VERSION.tgz"
-          for i in 1 2 3 4 5 6 7 8 9 10; do
-            curl -fsSL -o "dist/korn-sync-$VERSION.tgz" "$TGZ" && break
-            echo "waiting for npm to serve $TGZ ($i)"; sleep 10
-          done
           SHA=$(shasum -a 256 "dist/korn-sync-$VERSION.tgz" | cut -d' ' -f1)
           node packaging/homebrew/render-formula.mjs "$VERSION" "$SHA" > dist/korn.rb
           ruby -c dist/korn.rb
