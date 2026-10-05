@@ -26,6 +26,8 @@ korn resolve   # pick yours / theirs / both for each collision
 korn stop      # stop background sync (korn start to resume)
 ```
 
+To remove it: `korn uninstall` first (stops the background service, asks whether to remove settings and logs), then `npm uninstall -g korn-sync`. Your notes are never touched.
+
 When both of you edited the same lines, `korn setup` lets you choose:
 
 - **Keep both** (default): the file takes their version, yours is saved next to it as `note.conflict-<time>.md`. Nothing to do.
@@ -38,4 +40,4 @@ More: [docs/daemon.md](https://github.com/midnightzkkornz/korn-extension/blob/ma
 
 ---
 
-**ภาษาไทย:** sync โน้ต markdown ผ่าน git เบื้องหลัง ติดตั้ง `npm install -g korn-sync` (หรือ pnpm / brew ตามด้านบน) แล้วพิมพ์ `korn setup` จากนั้นพิมพ์ `korn` เพื่อดูสถานะ ถ้าแก้ชนกันจะบอกว่าต้องทำอะไรต่อ
+**ภาษาไทย:** sync โน้ต markdown ผ่าน git เบื้องหลัง ติดตั้ง `npm install -g korn-sync` (หรือ pnpm / brew ตามด้านบน) แล้วพิมพ์ `korn setup` จากนั้นพิมพ์ `korn` เพื่อดูสถานะ ถ้าแก้ชนกันจะบอกว่าต้องทำอะไรต่อ · ถอน: `korn uninstall` แล้ว `npm uninstall -g korn-sync`

@@ -61,6 +61,7 @@ Change them in the panel (VS Code) or with `korn setup` / `korn set . --conflict
 | `korn start` / `korn stop` | Background sync on / off (macOS LaunchAgent, Linux systemd user unit) |
 | `korn resolve [file]` | Pick mine / theirs / both for each conflict |
 | `korn log [-f]` | What it did |
+| `korn uninstall` | Stop it and clean up (asks about settings and logs; `--all` removes them), then shows the command that removes the package |
 | `korn help --all` | Every command (`set`, `add`, `remove`, `sync`, `status --json`, `doctor`, `pause`, `resume`, `daemon`…) |
 
 In VS Code, `Korn: Install 'korn' Command in PATH` puts the bundled `korn` in `~/.local/bin` without installing anything else (needs Node.js).
@@ -118,6 +119,15 @@ Every 30 seconds, for each repo:
 | `dialog` / `banner` / `off` | Always the dialog / a banner / nothing | Banner / banner / nothing |
 
 Plain macOS banners come from `osascript` and open Script Editor when clicked, so conflicts use VS Code or the dialog. With `terminal-notifier` installed, banners use it and open the file. If macOS won't let a background job show the dialog, a banner is shown instead (see `korn log`).
+
+### Uninstalling
+
+```sh
+korn uninstall                 # stops background sync, removes its copy; asks whether to remove settings and logs
+npm uninstall -g korn-sync     # or the command korn uninstall shows (pnpm / yarn / bun / brew)
+```
+
+Removing the package alone isn't enough: package managers don't run anything on removal, so the background service would keep running. Your notes and their git history are never touched.
 
 ### Releasing (npm + Homebrew)
 
@@ -216,7 +226,16 @@ korn setup
 - **แบบ "เก็บทั้งสองไว้":** ไม่ต้องทำอะไร แผงและ `korn` บอกว่าสร้างสำเนาไว้ที่ไหน มีลิงก์ให้เปิดดู
 - **ปิด:** เอาติ๊กออกในแผง หรือ `korn stop` การตั้งค่ายังอยู่
 
-คำสั่ง: `korn` · `korn setup` · `korn start` / `korn stop` · `korn resolve [ไฟล์]` · `korn log` · `korn help --all`
+คำสั่ง: `korn` · `korn setup` · `korn start` / `korn stop` · `korn resolve [ไฟล์]` · `korn log` · `korn uninstall` · `korn help --all`
+
+### ถอนการติดตั้ง
+
+```sh
+korn uninstall                 # หยุด sync เบื้องหลัง ลบสำเนาโปรแกรม และถามว่าจะลบการตั้งค่ากับ log ด้วยไหม (--all = ลบเลย)
+npm uninstall -g korn-sync     # หรือคำสั่งที่ korn uninstall บอก (pnpm / yarn / bun / brew)
+```
+
+ต้อง `korn uninstall` ก่อน เพราะถอนแพ็กเกจอย่างเดียว ตัวเบื้องหลังจะยังทำงานต่อ โน้ตและ git history ใน repo ไม่ถูกแตะ
 
 ### ใช้ใน terminal อย่างเดียว (ไม่มี VS Code)
 

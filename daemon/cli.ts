@@ -26,6 +26,7 @@ import { createNotifier } from './notify';
 import { describe, overview } from './overview';
 import { startService, stopService } from './service';
 import { setup } from './setup';
+import { uninstall } from './uninstall';
 import { clearPid, daemonPid, log, logFile, readPaused, readState, setPaused, writePid } from './state';
 import { VERSION } from './version';
 
@@ -39,6 +40,7 @@ const HELP = `korn ${VERSION} — sync โน้ต markdown ผ่าน git �
   korn stop             หยุด sync เบื้องหลัง
   korn resolve [file]   เลือกของเรา/ของอีกคนทีละจุด เมื่อแก้ชนกัน
   korn log [-f]         ดูว่าทำอะไรไปบ้าง
+  korn uninstall        หยุดและลบทุกอย่างที่ korn ทิ้งไว้ในเครื่อง (ก่อนถอนแพ็กเกจ)
 
 คำสั่งทั้งหมด: korn help --all`;
 
@@ -53,6 +55,8 @@ Setup
 
 Run
   korn start / korn stop         background service (LaunchAgent on macOS, systemd --user on Linux)
+  korn uninstall [--all | --keep-config]
+                                 stop it and clean up before removing the package
   korn daemon                    run in this terminal instead
   korn sync [path]               one round now, ignoring the quiet time
 
@@ -97,6 +101,8 @@ async function main(argv: string[]): Promise<number> {
 			return start();
 		case 'stop':
 			return stop();
+		case 'uninstall':
+			return uninstall(kornScript(), args);
 		case 'set':
 			return set(args);
 		case '-v':
